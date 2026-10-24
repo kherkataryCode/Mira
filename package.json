@@ -1,0 +1,40 @@
+{
+  "name": "friday-assistant",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Friday — a personal AI assistant for web and iOS.",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22.12 <23"
+  },
+  "packageManager": "npm@10.9.4",
+  "scripts": {
+    "build": "npm run build -w @friday/shared && npm run build -w @friday/api && npm run build -w @friday/worker && npm run build -w @friday/web",
+    "dev:api": "npm run dev -w @friday/api",
+    "dev:worker": "npm run dev -w @friday/worker",
+    "dev:web": "npm run dev -w @friday/web",
+    "dev:mobile": "npm run start -w @friday/mobile",
+    "db:generate": "npm run db:generate -w @friday/api",
+    "db:migrate": "npm run db:migrate -w @friday/api",
+    "db:seed": "npm run db:seed -w @friday/api",
+    "lint": "eslint .",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "test:e2e": "npm run test:e2e -w @friday/web",
+    "check": "npm run build:libs && npm run lint && npm run typecheck && npm test && npm run build",
+    "audit:prod": "npm audit --omit=dev --audit-level=high",
+    "build:libs": "npm run build -w @friday/shared && npm run build -w @friday/api"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "eslint": "^10.13.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.13.0",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.72.0",
+    "vitest": "^5.0.5"
+  }
+}

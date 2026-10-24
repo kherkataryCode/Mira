@@ -1,0 +1,125 @@
+# Render Blueprint for Friday — https://render.com/docs/blueprint-spec
+# Topology: public web (Next.js) → private API (Fastify) → managed PostgreSQL,
+# plus an always-on background worker (pg-boss) that owns all scheduling.
+#
+# Cost note: background workers and preDeployCommand are not available on Render's free
+# plan, and free web services sleep. Reliable reminders need paid, always-on instances.
+# Check https://render.com/pricing for current plans — prices are not listed here.
+#
+# Manual step after the first sync: set the values marked `sync: false` in the dashboard
+# (WEB_ORIGINS must be the web service's public URL, e.g. https://friday-web.onrender.com).
+
+services:
+  - type: web
+    name: friday-api
+    runtime: node
+    plan: starter
+    buildCommand: npm ci --include=dev --workspace=@friday/shared --workspace=@friday/api && npm run build -w @friday/shared && npm run build -w @friday/api
+    preDeployCommand: npm run db:migrate -w @friday/api && npm run db:seed -w @friday/api
+    startCommand: npm run start -w @friday/api
+    healthCheckPath: /health/ready
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: HOST
+        value: 0.0.0.0
+      - key: DATABASE_URL
+        fromDatabase:
+          name: friday-db
+          property: connectionString
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: TRUST_PROXY_HOPS
+        value: "1"
+      - key: WEB_ORIGINS
+        sync: false
+      - key: OWNER_EMAIL
+        sync: false
+      - key: ALLOW_REGISTRATION
+        value: "true"
+      - key: DEMO_MODE
+        value: "false"
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        sync: false
+      - key: MOONSHOT_API_KEY
+        sync: false
+      - key: MOONSHOT_MODEL
+        sync: false
+      - key: AI_GLOBAL_MONTHLY_BUDGET_USD
+        value: "20"
+      - key: PUSH_ENABLED
+        value: "false"
+      - key: EXPO_ACCESS_TOKEN
+        sync: false
+
+  - type: web
+    name: friday-web
+    runtime: node
+    plan: starter
+    buildCommand: npm ci --include=dev --workspace=@friday/shared --workspace=@friday/web && npm run build -w @friday/shared && npm run build -w @friday/web
+    startCommand: npm run start -w @friday/web
+    healthCheckPath: /login
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+      - key: FRIDAY_HTTPS
+        value: "true"
+      - key: API_INTERNAL_HOSTPORT
+        fromService:
+          type: web
+          name: friday-api
+          property: hostport
+
+  - type: worker
+    name: friday-worker
+    runtime: node
+    plan: starter
+    buildCommand: npm ci --include=dev --workspace=@friday/shared --workspace=@friday/api --workspace=@friday/worker && npm run build -w @friday/shared && npm run build -w @friday/api && npm run build -w @friday/worker
+    startCommand: npm run start -w @friday/worker
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: friday-db
+          property: connectionString
+      # The worker validates the same config as the API; it never serves HTTP.
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: DEMO_MODE
+        value: "false"
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        sync: false
+      - key: MOONSHOT_API_KEY
+        sync: false
+      - key: MOONSHOT_MODEL
+        sync: false
+      - key: PUSH_ENABLED
+        value: "false"
+      - key: EXPO_ACCESS_TOKEN
+        sync: false
+
+databases:
+  - name: friday-db
+    databaseName: friday
+    user: friday
+    plan: basic-256mb
+    postgresMajorVersion: "16"
+    # Empty allow list = reachable only from services in the same Render account/region.
+    ipAllowList: []

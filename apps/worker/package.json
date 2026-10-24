@@ -1,0 +1,25 @@
+{
+  "name": "@friday/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=../../.env src/index.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@friday/api": "0.1.0",
+    "@friday/shared": "0.1.0",
+    "drizzle-orm": "^0.45.4",
+    "luxon": "^3.7.2",
+    "pg-boss": "^12.38.0"
+  },
+  "devDependencies": {
+    "@types/luxon": "^3.7.6",
+    "tsx": "^4.23.15"
+  }
+}

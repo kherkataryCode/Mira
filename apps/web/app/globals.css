@@ -1,0 +1,148 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/fraunces';
+@import '@fontsource-variable/inter';
+
+/*
+ * Friday design tokens — editorial palette from the product spec.
+ * Contrast (checked against --bg): text 13.1:1, muted 8.9:1, accent-text 5.4:1.
+ * Raw vermilion (#D63229) is only used for fills, icons and large display text.
+ */
+:root {
+  --ink: #060505;
+  --cream: #decdb6;
+  --sand: #d4bc9e;
+  --taupe: #bbaf9d;
+  --charcoal: #444335;
+  --green: #4f7755;
+  --sage: #7e886e;
+  --vermilion: #d63229;
+
+  --bg: #060505;
+  --surface: #110f0e;
+  --raised: #1a1816;
+  --line: #2b2723;
+  --text: #ece1d2;
+  --muted: #b3a795;
+  --accent: #d63229;
+  --accent-text: #f06a5e;
+  --on-accent: #fff8f1;
+  --positive: #8fb58f;
+  --panel: #decdb6;
+  --on-panel: #14110f;
+  --topbar-h: 3.5rem;
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+  --bg: #f4ece1;
+  --surface: #fbf6ef;
+  --raised: #ffffff;
+  --line: #e1d5c4;
+  --text: #17130f;
+  --muted: #5e5447;
+  --accent: #c42c23;
+  --accent-text: #a8261e;
+  --on-accent: #fff8f1;
+  --positive: #3d6b45;
+  --panel: #17130f;
+  --on-panel: #f4ece1;
+  color-scheme: light;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-line: var(--line);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-text: var(--accent-text);
+  --color-on-accent: var(--on-accent);
+  --color-positive: var(--positive);
+  --color-panel: var(--panel);
+  --color-on-panel: var(--on-panel);
+  --color-cream: var(--cream);
+  --color-sand: var(--sand);
+  --color-taupe: var(--taupe);
+  --color-green: var(--green);
+  --color-sage: var(--sage);
+  --color-charcoal: var(--charcoal);
+  --color-vermilion: var(--vermilion);
+  --font-display: 'Fraunces Variable', ui-serif, Georgia, serif;
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  min-height: 100dvh;
+  overflow-x: hidden;
+}
+
+/* Fluid editorial display type. */
+.display {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  letter-spacing: -0.02em;
+  line-height: 1.02;
+  font-weight: 560;
+}
+.display-xl { font-size: clamp(2rem, 1.2rem + 3.2vw, 3.6rem); }
+.display-lg { font-size: clamp(1.6rem, 1.1rem + 2vw, 2.6rem); }
+.display-md { font-size: clamp(1.25rem, 1rem + 1vw, 1.75rem); }
+
+.eyebrow {
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.safe-bottom { padding-bottom: max(0.5rem, env(safe-area-inset-bottom)); }
+.safe-top { padding-top: env(safe-area-inset-top); }
+.safe-x {
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
+}
+
+/* Short landscape screens: compact chrome so content keeps the space. */
+@media (orientation: landscape) and (max-height: 500px) {
+  :root { --topbar-h: 3rem; }
+  .compact-landscape { padding-top: 0.5rem !important; padding-bottom: 0.5rem !important; margin-bottom: 0.75rem !important; }
+  .hide-short { display: none !important; }
+  .display-xl { font-size: 1.75rem; }
+  .display-lg { font-size: 1.5rem; }
+  .tab-link { min-height: 2.75rem !important; flex-direction: row !important; gap: 0.4rem !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+.scrollbar-thin { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); }
+  100% { box-shadow: 0 0 0 16px transparent; }
+}
+.listening { animation: pulse-ring 1.2s ease-out infinite; }
+
+@keyframes blink { 50% { opacity: 0.25; } }
+.typing-dot { animation: blink 1s infinite; }
+.typing-dot:nth-child(2) { animation-delay: 0.15s; }
+.typing-dot:nth-child(3) { animation-delay: 0.3s; }

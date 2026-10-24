@@ -1,0 +1,130 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Lint, typecheck, test, build
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: friday
+          POSTGRES_PASSWORD: friday
+          POSTGRES_DB: friday_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U friday" --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://friday:friday@localhost:5432/friday_test
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - run: npm run build:libs
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build -w @friday/worker
+      - run: npm run build -w @friday/web
+
+  e2e:
+    name: Web E2E + responsive matrix
+    runs-on: ubuntu-latest
+    needs: check
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: friday
+          POSTGRES_PASSWORD: friday
+          POSTGRES_DB: friday_e2e
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U friday" --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      E2E_DATABASE_URL: postgres://friday:friday@localhost:5432/friday_e2e
+      NEXT_TELEMETRY_DISABLED: "1"
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - run: npm run build:libs && npm run build -w @friday/web
+      - run: npx playwright install --with-deps chromium
+        working-directory: apps/web
+      - run: npm run test:e2e
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-and-screenshots
+          path: |
+            apps/web/playwright-report
+            design/screenshots
+          retention-days: 14
+
+  mobile:
+    name: iOS bundle (Expo export)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - run: npm run build -w @friday/shared
+      - run: npm run typecheck -w @friday/mobile
+      - run: npm run bundle:ios -w @friday/mobile
+        env:
+          EXPO_PUBLIC_API_URL: https://api.example.com
+
+  security:
+    name: Dependency audit + secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  codeql:
+    name: CodeQL static analysis
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+      - uses: github/codeql-action/analyze@v3
