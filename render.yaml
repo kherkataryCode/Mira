@@ -14,7 +14,7 @@ services:
     name: friday-api
     runtime: node
     plan: starter
-    buildCommand: npm ci --include=dev --workspace=@friday/shared --workspace=@friday/api && npm run build -w @friday/shared && npm run build -w @friday/api
+	buildCommand: npm ci --include=dev && npm run build -w @friday/shared && npm run build -w @friday/api
     preDeployCommand: npm run db:migrate -w @friday/api && npm run db:seed -w @friday/api
     startCommand: npm run start -w @friday/api
     healthCheckPath: /health/ready
@@ -62,7 +62,7 @@ services:
     name: friday-web
     runtime: node
     plan: starter
-    buildCommand: npm ci --include=dev --workspace=@friday/shared --workspace=@friday/web && npm run build -w @friday/shared && npm run build -w @friday/web
+buildCommand: npm ci --include=dev && npm run build -w @friday/shared && npm run build -w @friday/web
     startCommand: npm run start -w @friday/web
     healthCheckPath: /login
     envVars:
@@ -84,7 +84,7 @@ services:
     name: friday-worker
     runtime: node
     plan: starter
-    buildCommand: npm ci --include=dev --workspace=@friday/shared --workspace=@friday/api --workspace=@friday/worker && npm run build -w @friday/shared && npm run build -w @friday/api && npm run build -w @friday/worker
+buildCommand: npm ci --include=dev && npm run build -w @friday/shared && npm run build -w @friday/api && npm run build -w @friday/worker
     startCommand: npm run start -w @friday/worker
     envVars:
       - key: NODE_ENV
