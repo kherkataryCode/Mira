@@ -30,7 +30,7 @@ beforeAll(async () => {
 afterAll(async () => closeTestApp(ctx));
 
 describe('on-demand briefing', () => {
-  it('posts a full briefing into today’s chat thread, with only relevant, recent news', async () => {
+  it('“Brief me” opens a new chat with a short briefing and only relevant, recent news', async () => {
     await u.call({ method: 'POST', url: '/tasks', payload: { title: 'Finish OT security report', dueAt: new Date(Date.now() + 60_000).toISOString(), priority: 'high' } });
     await addNews(u.id, 'Siemens PLC vulnerability actively exploited', 'CISA reports the flaw is being exploited in the wild.', 90, 'exploited');
     await addNews(u.id, 'Phone maker launches new model', 'Bigger battery and new colours.', 5);
@@ -40,35 +40,36 @@ describe('on-demand briefing', () => {
     expect(res.statusCode).toBe(201);
     const { conversationId } = res.json();
     const convo = (await u.call({ method: 'GET', url: `/chat/conversations/${conversationId}` })).json();
-    expect(convo.conversation.kind).toBe('daily');
+    expect(convo.conversation.kind).toBe('chat');
     const msg = convo.messages.at(-1);
     expect(msg.kind).toBe('briefing');
     const md: string = msg.content;
-    for (const part of ['## Your day', 'Finish OT security report', '## A. Top Cybersecurity News', '## B. Concept of the Day', '**How it works**', '**Architecture view**', '**Logical question**', 'Learn more:']) {
+    for (const part of ['**✅ To-dos**', 'Finish OT security report', '**⏰ Reminders**', '**🛡️ Cyber news**', '**💡 Concept:', '**Takeaway:**', '](/learn/', '[📰 All cyber news](/news)']) {
       expect(md, part).toContain(part);
     }
-    expect(md).toContain('Siemens PLC vulnerability actively exploited');
-    expect(md).toContain('Reported as exploited in the wild (per source)');
-    expect(md).toContain('[CISA — ICS Advisories](https://example.test/');
+    expect(md).toMatch(/- \[Siemens PLC vulnerability actively exploited\]\(https:\/\/example\.test\/[^)]+\) · 🔥 _exploited_/);
     expect(md).not.toContain('Phone maker');
     expect(md).not.toContain('Old Fortinet advisory');
-    expect(md).toMatch(/## C\. (OT )?Security Insight/);
+    expect(md).not.toContain('**Architecture view**');
+    expect(md.length).toBeLessThan(2500);
 
     const today = (await u.call({ method: 'GET', url: '/briefings/today' })).json();
-    expect(today.conversationId).toBe(conversationId);
+    expect(today.conversationId).toBeNull();
     expect(today.sent.map((s: { slot: string }) => s.slot)).toEqual(['ondemand']);
   });
 
   it('rotates the concept of the day and does not repeat stories already sent today', async () => {
-    const first = (await u.call({ method: 'GET', url: '/briefings/today' })).json().conversationId;
-    await u.call({ method: 'POST', url: '/briefings/now', payload: {} });
-    const convo = (await u.call({ method: 'GET', url: `/chat/conversations/${first}` })).json();
-    const [a, b] = convo.messages.filter((m: { kind: string }) => m.kind === 'briefing').map((m: { content: string }) => m.content);
-    const concept = (md: string) => /\*\*Concept: (.+?)\*\*/.exec(md)?.[1];
+    const res = await u.call({ method: 'POST', url: '/briefings/now', payload: {} });
+    const chats = (await u.call({ method: 'GET', url: '/chat/conversations' })).json().conversations.filter((c: { title: string }) => c.title.startsWith('Briefing ·'));
+    expect(chats.length).toBe(2);
+    const contentOf = async (id: string) => ((await u.call({ method: 'GET', url: `/chat/conversations/${id}` })).json().messages.at(-1).content as string);
+    const b = await contentOf(res.json().conversationId);
+    const a = await contentOf(chats.find((c: { id: string }) => c.id !== res.json().conversationId).id);
+    const concept = (md: string) => /Concept: (.+?)\*\*/.exec(md)?.[1];
     expect(concept(a)).toBeTruthy();
     expect(concept(a)).not.toEqual(concept(b));
     expect(b).not.toContain('Siemens PLC vulnerability actively exploited');
-    expect(b).toContain('No new cybersecurity stories');
+    expect(b).toContain('No new stories from your sources');
   });
 
   it('answers "give me my daily summary" in chat with the briefing', async () => {
@@ -76,7 +77,7 @@ describe('on-demand briefing', () => {
     const events = ndjson(res.body);
     expect(events[0]!.type).toBe('meta');
     expect(events.at(-1)).toMatchObject({ type: 'done', provider: 'mira-briefing' });
-    expect(events.find((e) => e.type === 'delta')!.text).toContain('## B. Concept of the Day');
+    expect(events.find((e) => e.type === 'delta')!.text).toContain('**💡 Concept:');
   });
 
   it('keeps learning inside the selected topics', async () => {

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
-import { and, asc, desc, eq, inArray, isNotNull, lt, lte, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNotNull, lt, lte, sql } from 'drizzle-orm';
 import { DateTime } from 'luxon';
-import { localDate } from '@friday/shared';
+import { CYBER_RELEVANCE_THRESHOLD, localDate } from '@friday/shared';
 import { briefs, lessonProgress, lessons, newsItems, reminders, tasks } from '../db/schema.js';
 import { authUser } from '../auth/plugin.js';
 import { getPreferences } from '../services/prefs.js';
@@ -19,7 +19,7 @@ export async function homeRoutes(app: FastifyInstance): Promise<void> {
     const dayEnd = local.endOf('day').toJSDate();
     const today = localDate(now, prefs.timezone);
 
-    const [todayTasks, todayCount, nextReminders, featuredLesson, topNews, latestBrief, reviewsDue] = await Promise.all([
+    const [todayTasks, todayCount, nextReminders, featuredLesson, topNews, latestBrief, reviewsDue, openTasks, upNext] = await Promise.all([
       app.db.select().from(tasks)
         .where(and(eq(tasks.userId, me.id), eq(tasks.status, 'open'), isNotNull(tasks.dueAt), lt(tasks.dueAt, dayEnd)))
         .orderBy(asc(tasks.dueAt)).limit(5),
@@ -35,14 +35,19 @@ export async function homeRoutes(app: FastifyInstance): Promise<void> {
           prefs.learningTopics.length ? inArray(lessons.topic, prefs.learningTopics) : undefined,
         ))
         .orderBy(sql`${lessonProgress.status} = 'started' desc nulls last`, asc(lessons.title)).limit(1),
+      // Cyber-relevant stories from the last 3 days, exploited first.
       app.db.select().from(newsItems)
-        .where(and(eq(newsItems.userId, me.id), eq(newsItems.hidden, false)))
-        .orderBy(sql`array_position(array['breaking','important','relevant','background'], ${newsItems.importance})`, sql`${newsItems.publishedAt} desc nulls last`)
+        .where(and(eq(newsItems.userId, me.id), eq(newsItems.hidden, false), gte(newsItems.relevance, CYBER_RELEVANCE_THRESHOLD), gte(newsItems.fetchedAt, new Date(now.getTime() - 72 * 3_600_000))))
+        .orderBy(sql`array_position(array['exploited','proof-of-concept','not-reported'], ${newsItems.exploitation})`, sql`${newsItems.publishedAt} desc nulls last`)
         .limit(3),
       app.db.select().from(briefs).where(and(eq(briefs.userId, me.id), eq(briefs.localDate, today)))
         .orderBy(desc(briefs.createdAt)).limit(1),
       app.db.select({ n: sql<number>`count(*)::int` }).from(lessonProgress)
         .where(and(eq(lessonProgress.userId, me.id), lte(lessonProgress.reviewDueAt, now))),
+      app.db.select({ n: sql<number>`count(*)::int` }).from(tasks).where(and(eq(tasks.userId, me.id), eq(tasks.status, 'open'))),
+      // When nothing is due today, the to-do box shows what's next instead.
+      app.db.select().from(tasks).where(and(eq(tasks.userId, me.id), eq(tasks.status, 'open')))
+        .orderBy(sql`${tasks.dueAt} asc nulls last`, desc(tasks.createdAt)).limit(3),
     ]);
 
     const hour = local.hour;
@@ -53,8 +58,9 @@ export async function homeRoutes(app: FastifyInstance): Promise<void> {
       localDate: today,
       timezone: prefs.timezone,
       dashboard: prefs.dashboard,
-      counts: { tasksToday: todayCount[0]?.n ?? 0, reminders: nextReminders.length, news: topNews.length, reviewsDue: reviewsDue[0]?.n ?? 0 },
+      counts: { tasksToday: todayCount[0]?.n ?? 0, openTasks: openTasks[0]?.n ?? 0, reminders: nextReminders.length, news: topNews.length, reviewsDue: reviewsDue[0]?.n ?? 0 },
       tasks: todayTasks,
+      upNext,
       reminders: nextReminders,
       lesson: lesson
         ? { id: lesson.lesson.id, title: lesson.lesson.title, topic: lesson.lesson.topic, minutes: lesson.lesson.minutes, summary: lesson.lesson.summary, artSeed: lesson.lesson.artSeed, status: lesson.status }

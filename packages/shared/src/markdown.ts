@@ -16,8 +16,9 @@ export type MdBlock =
   | { t: 'code'; text: string }
   | { t: 'rule' };
 
-/** Only http(s) and mailto links survive; anything else becomes plain text. */
+/** Only http(s), mailto and in-app paths ("/learn/…") survive; anything else becomes plain text. */
 export function safeHref(raw: string): string | null {
+  if (/^\/(?!\/)[\w\-./?=&%#]*$/.test(raw)) return raw;
   try {
     const u = new URL(raw);
     return u.protocol === 'https:' || u.protocol === 'http:' || u.protocol === 'mailto:' ? u.toString() : null;

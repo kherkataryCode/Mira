@@ -116,8 +116,10 @@ export interface Home {
   localDate: string;
   timezone: string;
   dashboard: Preferences['dashboard'];
-  counts: { tasksToday: number; reminders: number; news: number; reviewsDue: number };
+  counts: { tasksToday: number; openTasks: number; reminders: number; news: number; reviewsDue: number };
   tasks: Task[];
+  /** Next open to-dos (by due date), for when nothing is due today. */
+  upNext: Task[];
   reminders: Reminder[];
   lesson: { id: string; title: string; topic: string; minutes: number; summary: string; artSeed: number; status: string | null } | null;
   news: NewsItem[];

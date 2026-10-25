@@ -39,6 +39,8 @@ describe('markdown', () => {
     const last = blocks.at(-1)!;
     expect(last.t === 'paragraph' && last.inlines[0]).toEqual({ t: 'text', v: 'bad' });
     expect(parseInline('see [x](https://a.example/p)')[1]).toEqual({ t: 'link', v: 'x', href: 'https://a.example/p' });
+    expect(parseInline('[lesson](/learn/abc-1)')[0]).toEqual({ t: 'link', v: 'lesson', href: '/learn/abc-1' });
+    expect(parseInline('[evil](//evil.example)')[0]).toEqual({ t: 'text', v: 'evil' });
   });
 });
 

@@ -374,12 +374,65 @@ export interface ComposedBriefing {
   generatedBy: 'deterministic' | 'ai';
 }
 
+const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
+
+/**
+ * "Brief me": a short summary for reading in chat. Deterministic (no AI call) so it costs nothing,
+ * with links to the full lesson and the news page for detail.
+ */
+async function composeQuickBriefing(db: Db, ai: AiGateway | null, userId: string, prefs: Preferences, now: Date, name: string): Promise<ComposedBriefing> {
+  const zone = prefs.timezone;
+  const local = DateTime.fromJSDate(now, { zone });
+  const greeting = local.hour < 12 ? 'Good morning' : local.hour < 17 ? 'Good afternoon' : 'Good evening';
+  const out: string[] = [`**${greeting}, ${name}. Here's your day at a glance.**`];
+
+  const p = await planLines(db, userId, prefs, local);
+  const todos = p.todos.slice(0, 3);
+  out.push(
+    `**✅ To-dos**\n\n${todos.length ? todos.map((t) => `- ${t}`).join('\n') : '- Nothing due today.'}${p.todos.length > 3 ? `\n- …and ${p.todos.length - 3} more` : ''}${p.overdue ? `\n- ⚠️ ${p.overdue} overdue from earlier` : ''}`,
+  );
+  const rem = p.reminders.slice(0, 3);
+  out.push(`**⏰ Reminders**\n\n${rem.length ? rem.map((r) => `- ${r}`).join('\n') : '- None today.'}`);
+
+  await ensureDefaultSources(db, userId);
+  const today = localDate(now, zone);
+  const earlier = await db.select({ ids: briefings.newsItemIds }).from(briefings).where(and(eq(briefings.userId, userId), eq(briefings.localDate, today)));
+  const news = (await selectNews(db, userId, now, earlier.flatMap((e) => e.ids))).slice(0, 3);
+  const tag = (n: NewsRow) => (n.exploitation === 'exploited' ? ' · 🔥 _exploited_' : n.exploitation === 'proof-of-concept' ? ' · _PoC public_' : '');
+  out.push(
+    `**🛡️ Cyber news**\n\n${
+      news.length
+        ? news.map((n) => `- [${clip(oneLine(n.title), 110)}](${n.url})${tag(n)}${n.summary ? ` — ${clip(oneLine(n.brief ?? n.summary), 140)}` : ''}`).join('\n')
+        : '- No new stories from your sources right now.'
+    }`,
+  );
+
+  const lesson = await selectConcept(db, ai, userId, prefs);
+  if (lesson) {
+    const concept = [`**💡 Concept: ${lesson.title}**`, clip(oneLine(lesson.summary), 260)];
+    if (lesson.steps.length) concept.push(lesson.steps.slice(0, 3).map((s) => `- ${clip(oneLine(s), 160)}`).join('\n'));
+    concept.push(`**Takeaway:** ${oneLine(lesson.takeaway)}`);
+    if (lesson.question) concept.push(`**Think about it:** ${oneLine(lesson.question)}`);
+    out.push(concept.join('\n\n'));
+  }
+
+  out.push(`${lesson ? `[📘 Open the full lesson](/learn/${lesson.id}) · ` : ''}[📰 All cyber news](/news)`);
+  return {
+    markdown: out.join('\n\n'),
+    title: 'Your briefing',
+    lessonId: lesson?.id ?? null,
+    newsItemIds: news.map((n) => n.id),
+    generatedBy: lesson?.origin === 'ai' ? 'ai' : 'deterministic',
+  };
+}
+
 export async function composeBriefing(db: Db, ai: AiGateway | null, userId: string, slot: BriefingSlot, now = new Date()): Promise<ComposedBriefing> {
   const prefs = await getPreferences(db, userId);
   const parts = SLOT_PARTS[slot];
   const zone = prefs.timezone;
   const local = DateTime.fromJSDate(now, { zone });
   const [user] = await db.select({ name: users.displayName }).from(users).where(eq(users.id, userId)).limit(1);
+  if (slot === 'ondemand') return composeQuickBriefing(db, ai, userId, prefs, now, user?.name ?? 'there');
   const greeting = local.hour < 12 ? 'Good morning' : local.hour < 17 ? 'Good afternoon' : 'Good evening';
   const label = slot === 'morning' ? 'morning briefing' : slot === 'evening' ? 'evening security briefing' : 'briefing';
   const sections: string[] = [`**${greeting}, ${user?.name ?? 'there'} — here is your ${label} for ${local.toFormat('cccc d LLLL')}.**`];
@@ -482,8 +535,9 @@ export async function postBriefing(
     }
   }
   const composed = await composeBriefing(db, ai, userId, slot, now);
-  const daily = await dailyConversation(db, userId, now);
-  const conversationId = opts.conversationId ?? daily.id;
+  // Only scheduled briefings create the day's thread; "Brief me" posts into its own chat.
+  const daily = opts.conversationId ? { id: opts.conversationId, localDate: localDate(now, prefs.timezone) } : await dailyConversation(db, userId, now);
+  const conversationId = daily.id;
   const fields = { content: composed.markdown, status: 'complete' as const, provider: 'mira-briefing', model: composed.generatedBy, kind: 'briefing' as const, errorCode: null };
   const [msg] = opts.messageId
     ? await db.update(messages).set(fields).where(and(eq(messages.id, opts.messageId), eq(messages.userId, userId))).returning({ id: messages.id })

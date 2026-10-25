@@ -1,6 +1,8 @@
 import { expect, type Page } from '@playwright/test';
 
-export async function registerAndLogin(page: Page, name = 'Asha'): Promise<string> {
+export async function registerAndLogin(page: Page, name = 'Asha', opts: { buddy?: boolean } = {}): Promise<string> {
+  // Mira's pop-ups are muted in tests unless a test is about them, so they never cover controls.
+  if (!opts.buddy) await page.addInitScript(() => localStorage.setItem('mira.buddy', 'off'));
   const email = `e2e-${Date.now()}-${Math.random().toString(36).slice(2, 7)}@example.test`;
   await page.goto('/register');
   await page.getByLabel('Your name').fill(name);

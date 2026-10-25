@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { and, asc, eq } from 'drizzle-orm';
 import { z } from 'zod';
+import { DateTime } from 'luxon';
 import { localDate } from '@friday/shared';
 import { briefings, conversations } from '../db/schema.js';
 import { authUser } from '../auth/plugin.js';
@@ -39,11 +40,18 @@ export async function briefingRoutes(app: FastifyInstance): Promise<void> {
     };
   });
 
-  /** On-demand briefing, posted into today's daily thread. Limited because it may call the AI. */
+  /** "Brief me": a short briefing in a new chat. Scheduled slots go to today's daily thread. */
   app.post('/briefings/now', { config: { rateLimit: { max: 6, timeWindow: '1 hour' } } }, async (req, reply) => {
     const me = authUser(req);
     const { slot } = parse(nowSchema, req.body ?? {});
-    const posted = await postBriefing(app.db, app.ai, me.id, slot, { collectNews: true });
+    let conversationId: string | undefined;
+    if (slot === 'ondemand') {
+      const prefs = await getPreferences(app.db, me.id);
+      const title = `Briefing · ${DateTime.now().setZone(prefs.timezone).toFormat('ccc d LLL, h:mm a')}`;
+      const [c] = await app.db.insert(conversations).values({ userId: me.id, title }).returning({ id: conversations.id });
+      conversationId = c!.id;
+    }
+    const posted = await postBriefing(app.db, app.ai, me.id, slot, { collectNews: true, conversationId });
     return reply.code(201).send({ conversationId: posted.conversationId, messageId: posted.messageId });
   });
 }

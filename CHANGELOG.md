@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.0 — 2026-10-25
+
+- **Brief me** opens a new chat with a short briefing: to-dos, reminders, a few cyber news bullets and the concept of the day, with links to the full lesson and the news page. It makes no AI call, so it costs nothing.
+- The home dashboard is now four boxes (to-dos, reminders, cyber news, learning) showing the items themselves, plus quick add. The AI brief hero is gone.
+- Mira pop-ups: an animated Mira appears at random spots with cheeky nudges (idle, reading, too many to-dos). You can mute her from the bubble or in Settings.
+- New artwork palettes and styles, loading animations and skeletons.
+- Notes are now Markdown documents: templates, a formatting toolbar, live preview and .md download.
+
 ## 0.2.0 — 2026-10-25 — Mira
 
 - Renamed the assistant to **Mira** (web, iOS, prompts, notifications).

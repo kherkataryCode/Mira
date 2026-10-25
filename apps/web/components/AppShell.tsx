@@ -22,6 +22,7 @@ import type { Preferences, User } from '@/lib/types';
 import { relativeTime } from '@/lib/format';
 import { LogoMark } from './Art';
 import { ErrorNote, IconButton, Loading } from './ui';
+import { MiraBuddy } from './MiraBuddy';
 
 interface Session {
   user: User;
@@ -256,6 +257,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           ) : null}
         </div>
       </div>
+
+      <MiraBuddy name={user.displayName.split(' ')[0] ?? user.displayName} />
 
       {/* Mobile "More" sheet */}
       {moreOpen ? (

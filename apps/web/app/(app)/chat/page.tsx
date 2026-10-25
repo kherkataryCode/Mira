@@ -1,7 +1,7 @@
 'use client';
 import { Suspense, useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { ArrowUp, CalendarDays, Copy, History, Mic, Plus, RotateCcw, Sparkles, Square, Trash2, Volume2, VolumeX, X } from 'lucide-react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Markdown } from '@/components/Markdown';
 import type { ChatMessage, Proposal } from '@/lib/types';
 import { api, errorMessage, streamChat, type ChatEvent } from '@/lib/api';
@@ -91,9 +91,39 @@ function ChatScreen() {
   }, []);
 
   const params = useSearchParams();
+  const router = useRouter();
   const requested = params.get('c');
+  const wantsBrief = params.get('brief') === '1';
 
+  const [preparing, setPreparing] = useState(false);
+  const prepareBriefing = useCallback(async () => {
+    setPreparing(true);
+    setError(null);
+    setConversationId(null);
+    setMessages([]);
+    try {
+      // "Brief me" always lands in a fresh chat.
+      const r = await api.post<{ conversationId: string }>('/briefings/now', {});
+      await loadConversations();
+      await openConversation(r.conversationId);
+      router.replace(`/chat?c=${r.conversationId}`);
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setPreparing(false);
+    }
+  }, [loadConversations, openConversation, router]);
+
+  const briefStarted = useRef(false);
   useEffect(() => {
+    if (wantsBrief) {
+      if (!briefStarted.current) {
+        briefStarted.current = true;
+        void prepareBriefing();
+      }
+      return;
+    }
+    briefStarted.current = false;
     // Open the requested thread, else today's briefing thread, else the latest chat.
     Promise.all([loadConversations(), api.get<{ conversationId: string | null }>('/briefings/today').catch(() => ({ conversationId: null }))])
       .then(([list, today]) => {
@@ -102,22 +132,7 @@ function ChatScreen() {
       })
       .catch((e: unknown) => setError(errorMessage(e)));
     return () => abortRef.current?.abort();
-  }, [loadConversations, openConversation, requested]);
-
-  const [preparing, setPreparing] = useState(false);
-  const prepareBriefing = async () => {
-    setPreparing(true);
-    setError(null);
-    try {
-      const r = await api.post<{ conversationId: string }>('/briefings/now', {});
-      await loadConversations();
-      await openConversation(r.conversationId);
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setPreparing(false);
-    }
-  };
+  }, [loadConversations, openConversation, requested, wantsBrief, prepareBriefing]);
 
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const readAloud = async (m: UiMessage) => {
@@ -275,8 +290,8 @@ function ChatScreen() {
         <IconButton label="Conversation history" onClick={() => setShowHistory((s) => !s)} aria-expanded={showHistory}>
           <History className="size-5" aria-hidden />
         </IconButton>
-        <Button variant="panel" className="!min-h-10" onClick={() => void prepareBriefing()} pending={preparing} disabled={Boolean(streaming)} title="Prepare today’s briefing now">
-          <Sparkles className="size-4" aria-hidden /> <span className="hidden sm:inline">Briefing</span>
+        <Button variant="panel" className="!min-h-10" onClick={() => void prepareBriefing()} pending={preparing} disabled={Boolean(streaming)} title="Brief me: a short summary in a new chat">
+          <Sparkles className="size-4" aria-hidden /> <span className="hidden sm:inline">Brief me</span>
         </Button>
         <IconButton label="New chat" onClick={newChat}>
           <Plus className="size-5" aria-hidden />
@@ -303,8 +318,8 @@ function ChatScreen() {
       ) : null}
 
       <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain scrollbar-thin" aria-live="polite" aria-busy={Boolean(streaming)}>
-        {loadingConvo ? <Loading label="Loading conversation" /> : null}
-        {!loadingConvo && messages.length === 0 ? (
+        {preparing ? <Loading label="Mira is putting your briefing together" /> : loadingConvo ? <Loading label="Loading conversation" /> : null}
+        {!loadingConvo && !preparing && messages.length === 0 ? (
           <div className="mx-auto mt-6 max-w-md text-center">
             <p className="display display-lg">Hi, I’m Mira. How can I help?</p>
             <div className="mt-4 flex flex-wrap justify-center gap-2">
@@ -325,7 +340,7 @@ function ChatScreen() {
                     m.role === 'user' ? 'whitespace-pre-wrap rounded-br-md bg-green/45 text-text' : 'rounded-bl-md border border-line bg-surface'
                   } ${m.kind === 'briefing' ? 'w-full sm:px-6 sm:py-5' : ''}`}
                 >
-                  {m.kind === 'briefing' ? <div className="mb-2 flex items-center gap-2"><Badge tone="accent">Mira · Daily briefing</Badge></div> : null}
+                  {m.kind === 'briefing' ? <div className="mb-2 flex items-center gap-2"><Badge tone="accent">Mira · Briefing</Badge></div> : null}
                   {m.role === 'assistant' && (m.demo || m.provider === 'demo') ? <div className="mb-1"><Badge tone="demo">Demo response</Badge></div> : null}
                   {m.role === 'assistant' && m.content ? <Markdown text={m.content} /> : m.content}
                   {m.status === 'streaming' && !m.content ? (

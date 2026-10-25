@@ -164,26 +164,52 @@ test('pages have no serious accessibility violations', async ({ page }) => {
   }
 });
 
-test('daily briefing: on demand in chat, with cyber learning sections', async ({ page }) => {
+test('“Brief me” opens a new chat with a short briefing that links to the lesson and news', async ({ page }) => {
   await registerAndLogin(page);
-  await page.goto('/chat');
-  await page.getByRole('button', { name: /Briefing/ }).click();
-  const briefing = page.locator('li').filter({ hasText: 'Mira · Daily briefing' }).last();
+  await page.goto('/');
+  for (const box of ['To-dos', 'Reminders', 'Cyber news', 'Learning']) await expect(page.getByRole('region', { name: box })).toBeVisible();
+  await page.getByRole('link', { name: 'Brief me' }).click();
+  await expect(page).toHaveURL(/\/chat\?c=/, { timeout: 20_000 });
+  const briefing = page.locator('li').filter({ hasText: 'Mira · Briefing' }).last();
   await expect(briefing).toBeVisible({ timeout: 20_000 });
-  for (const heading of ['Your day', 'A. Top Cybersecurity News', 'B. Concept of the Day']) {
-    await expect(briefing.getByRole('heading', { name: heading })).toBeVisible();
-  }
-  await expect(briefing.getByRole('heading', { name: /C\. (OT )?Security Insight/ })).toBeVisible();
-  await expect(briefing.getByText('Architecture view')).toBeVisible();
-  await expect(briefing.getByText('Logical question')).toBeVisible();
-  await expect(briefing.locator('pre')).toBeVisible();
+  for (const text of ['To-dos', 'Reminders', 'Cyber news', 'Concept:', 'Takeaway:']) await expect(briefing).toContainText(text);
+  await expect(briefing.getByRole('link', { name: /All cyber news/ })).toHaveAttribute('href', '/news');
+  await briefing.getByRole('link', { name: /Open the full lesson/ }).click();
+  await expect(page).toHaveURL(/\/learn\//);
 
-  // Typing the request in chat works too, and it lives in today's daily thread.
+  // Typing the request in chat works too.
+  await page.goto('/chat');
+  await page.getByRole('button', { name: 'New chat' }).click();
   await page.getByLabel('Message Mira').fill('give me my daily summary');
   await page.getByRole('button', { name: 'Send message' }).click();
-  await expect(page.locator('li').filter({ hasText: 'Mira · Daily briefing' })).toHaveCount(2, { timeout: 20_000 });
-  await page.getByRole('button', { name: 'Conversation history' }).click();
-  await expect(page.getByLabel('Daily briefing').first()).toBeVisible();
+  await expect(page.locator('li').filter({ hasText: 'Mira · Briefing' })).toHaveCount(1, { timeout: 20_000 });
+});
+
+test('notes: write a Markdown document from a template, preview it and download it', async ({ page }) => {
+  await registerAndLogin(page);
+  await page.goto('/notes');
+  await page.getByRole('button', { name: 'New document' }).click();
+  await page.getByRole('button', { name: 'Study notes', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'New document' });
+  await dialog.getByLabel('Title').fill('Zero trust notes');
+  await dialog.getByLabel('Document (Markdown)').press('ControlOrMeta+End');
+  await dialog.getByRole('button', { name: 'Bold' }).click();
+  await expect(dialog.getByLabel('Document (Markdown)')).toHaveValue(/\*\*bold\*\*/);
+  await expect(dialog.getByRole('heading', { name: 'Key idea' }).first()).toBeAttached();
+  const download = page.waitForEvent('download');
+  await dialog.getByRole('button', { name: 'Download .md' }).click();
+  expect((await download).suggestedFilename()).toBe('zero-trust-notes.md');
+  await dialog.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByRole('main')).toContainText('Zero trust notes');
+});
+
+test('Mira pops up with a greeting and can be muted', async ({ page }) => {
+  await registerAndLogin(page, 'Asha', { buddy: true });
+  const bubble = page.getByRole('status').filter({ hasText: /Asha/ });
+  await expect(bubble).toBeVisible({ timeout: 10_000 });
+  await bubble.getByRole('button', { name: 'Mute Mira' }).click();
+  await expect(bubble).toBeHidden();
+  expect(await page.evaluate(() => localStorage.getItem('mira.buddy'))).toBe('off');
 });
 
 test('learning is limited to the selected topics', async ({ page }) => {

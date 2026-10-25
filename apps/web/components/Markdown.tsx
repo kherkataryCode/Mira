@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { Fragment, type ReactNode } from 'react';
 import { parseMarkdown, type Inline } from '@friday/shared';
 
@@ -12,6 +13,13 @@ function inlines(xs: Inline[]): ReactNode {
       case 'code':
         return <code key={i} className="rounded bg-raised px-1 py-0.5 text-[0.9em]">{x.v}</code>;
       case 'link':
+        if (x.href.startsWith('/')) {
+          return (
+            <Link key={i} href={x.href} className="font-semibold text-accent-text underline underline-offset-2">
+              {x.v}
+            </Link>
+          );
+        }
         return (
           <a key={i} href={x.href} target="_blank" rel="noopener noreferrer nofollow" className="font-medium text-accent-text underline underline-offset-2">
             {x.v}

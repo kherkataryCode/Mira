@@ -1,6 +1,10 @@
 import { Linking, ScrollView, Text, View, type TextStyle } from 'react-native';
+import { router, type Href } from 'expo-router';
 import { parseMarkdown, type Inline } from '@friday/shared';
 import { colors, fonts } from '@/lib/theme';
+
+/** In-app links in briefings use web paths; the iOS lesson screen lives at /lesson/:id. */
+const appPath = (href: string) => href.replace(/^\/learn\/(?=.)/, '/lesson/') as Href;
 
 /** Native renderer for Mira's briefing markdown (no web views, no HTML). */
 function inlines(xs: Inline[], base: TextStyle) {
@@ -10,7 +14,7 @@ function inlines(xs: Inline[], base: TextStyle) {
     if (x.t === 'code') return <Text key={i} style={[base, { fontFamily: 'Menlo', fontSize: 13 }]}>{x.v}</Text>;
     if (x.t === 'link') {
       return (
-        <Text key={i} accessibilityRole="link" onPress={() => void Linking.openURL(x.href)} style={[base, { color: colors.accentText, textDecorationLine: 'underline' }]}>
+        <Text key={i} accessibilityRole="link" onPress={() => (x.href.startsWith('/') ? router.push(appPath(x.href)) : void Linking.openURL(x.href))} style={[base, { color: colors.accentText, textDecorationLine: 'underline' }]}>
           {x.v}
         </Text>
       );

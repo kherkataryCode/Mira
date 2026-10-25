@@ -4,6 +4,7 @@ import { ArrowDown, ArrowUp, Download, Monitor, Smartphone } from 'lucide-react'
 import { LEARNING_TOPICS, type LearningTopicId } from '@friday/shared';
 import type { Preferences } from '@/lib/types';
 import { englishVoices, pickMiraVoice, speak } from '@/components/useSpeech';
+import { buddyEnabled, setBuddyEnabled } from '@/components/MiraBuddy';
 import { api, errorMessage } from '@/lib/api';
 import { useAction, useResource } from '@/lib/hooks';
 import { relativeTime } from '@/lib/format';
@@ -57,6 +58,8 @@ function MiraVoice({ draft, onChange }: { draft: Preferences; onChange: (v: Pref
     };
   }, []);
   const best = pickMiraVoice(voice.webVoice)?.name;
+  const [buddy, setBuddy] = useState(true);
+  useEffect(() => setBuddy(buddyEnabled()), []);
   const test = async () => {
     const used = await speak('Hi, I’m Mira. Here’s your evening security briefing whenever you’re ready.', { natural: voice.naturalVoice, voiceName: voice.webVoice });
     setTestResult(used === 'natural' ? 'Played with Mira’s natural voice.' : used === 'device' ? `Played with this browser’s voice: ${best ?? 'default'}.` : 'This browser cannot speak.');
@@ -77,6 +80,9 @@ function MiraVoice({ draft, onChange }: { draft: Preferences; onChange: (v: Pref
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <Button onClick={() => void test()}>Test Mira’s voice</Button>
         {testResult ? <span role="status" className="text-xs text-muted">{testResult}</span> : null}
+      </div>
+      <div className="mt-4 border-t border-line pt-3">
+        <Toggle label="Mira pop-ups (cheeky reminders around the app, this browser)" checked={buddy} onChange={(v) => { setBuddyEnabled(v); setBuddy(v); }} />
       </div>
     </Section>
   );

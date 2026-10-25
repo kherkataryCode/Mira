@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { AlertTriangle, Loader2 } from 'lucide-react';
+import { MiraFace } from './Art';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'panel';
 
@@ -115,10 +116,21 @@ export function ErrorNote({ message, onRetry }: { message: string; onRetry?: () 
 
 export function Loading({ label = 'Loading' }: { label?: string }) {
   return (
-    <div role="status" className="flex items-center gap-2 py-6 text-sm text-muted">
-      <Loader2 className="size-4 animate-spin" aria-hidden /> {label}…
+    <div role="status" className="flex items-center gap-3 py-6 text-sm text-muted">
+      <MiraFace size={34} />
+      <span>{label}</span>
+      <span className="flex gap-1" aria-hidden>
+        <span className="typing-dot size-1.5 rounded-full bg-accent-text" />
+        <span className="typing-dot size-1.5 rounded-full bg-accent-text" />
+        <span className="typing-dot size-1.5 rounded-full bg-accent-text" />
+      </span>
     </div>
   );
+}
+
+/** Shimmering placeholder blocks while a page loads. */
+export function Skeleton({ className = '' }: { className?: string }) {
+  return <div aria-hidden className={`skeleton ${className}`} />;
 }
 
 export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: ReactNode }) {
