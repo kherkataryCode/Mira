@@ -12,3 +12,5 @@ export { runMigrations } from './db/migrate.js';
 export { seedLessons } from './db/seed.js';
 export { postBriefing, type BriefingSlot } from './services/briefing.js';
 export { ensureDefaultSources } from './services/news.js';
+export { runBriefs, runChatBriefings, runCleanup, runNewsCollection, runOnce, slotIsDue, MISSED_RUN_WINDOW_MS } from './jobs/jobs.js';
+export { startScheduler } from './jobs/scheduler.js';

@@ -64,6 +64,10 @@ const envSchema = z
     OPENCLAW_TOKEN: optionalStr,
 
     PUSH_ENABLED: bool(false),
+    /** Run the scheduler (briefings, reminders, news) inside the API process. Lets a single-service deploy work without a worker. */
+    EMBEDDED_WORKER: bool(true),
+    /** Apply pending migrations and refresh the curated lessons when the API starts. */
+    AUTO_MIGRATE: bool(true),
     EXPO_ACCESS_TOKEN: optionalStr,
   })
   .superRefine((env, ctx) => {

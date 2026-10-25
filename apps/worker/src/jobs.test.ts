@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { DEFAULT_PREFERENCES } from '@friday/shared';
 import { createDb, runMigrations, schema, seedLessons, type DbHandle } from '@friday/api/lib';
-import { runBriefs, runChatBriefings, runCleanup, runOnce, slotIsDue } from './jobs.js';
+import { runBriefs, runChatBriefings, runCleanup, runOnce, slotIsDue } from '@friday/api/lib';
 
 const URL = process.env.TEST_DATABASE_URL ?? 'postgres://friday:friday@localhost:5432/friday_test';
 let handle: DbHandle;

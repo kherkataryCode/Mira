@@ -11,7 +11,7 @@ import { Badge, Button, Card, Chip, ErrorNote, Field, IconButton, Loading, PageH
 import { useSession } from '@/components/AppShell';
 
 
-const PROVIDER_NAMES = { anthropic: 'Anthropic (Claude)', openai: 'OpenAI', moonshot: 'Kimi / Moonshot' } as const;
+const PROVIDER_NAMES = { anthropic: 'Anthropic (Claude)', openai: 'OpenAI', moonshot: 'OpenAI-compatible (Kimi, Groq…)' } as const;
 
 function Section({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
   return (

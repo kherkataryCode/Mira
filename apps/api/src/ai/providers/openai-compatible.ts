@@ -10,7 +10,7 @@ export interface OpenAICompatibleOptions {
   pricing: { input: number; output: number };
 }
 
-/** OpenAI, and Kimi/Moonshot through its OpenAI-compatible endpoint. */
+/** OpenAI, and any OpenAI-compatible endpoint (Kimi/Moonshot, Groq, …) via the moonshot slot. */
 export function createOpenAICompatibleAdapter(opts: OpenAICompatibleOptions): ProviderAdapter {
   const client = new OpenAI({ apiKey: opts.apiKey, baseURL: opts.baseURL, maxRetries: 0, timeout: opts.timeoutMs });
 
@@ -32,6 +32,8 @@ export function createOpenAICompatibleAdapter(opts: OpenAICompatibleOptions): Pr
     async *stream(req: GenerateRequest): AsyncGenerator<StreamEvent> {
       try {
         const tokenLimit = opts.id === 'openai' ? { max_completion_tokens: req.maxTokens } : { max_tokens: req.maxTokens };
+        // gpt-oss (e.g. on Groq) reasons before answering; keep it short so the answer fits the token limit.
+        const reasoning = /gpt-oss/i.test(opts.model) ? { reasoning_effort: 'low' as const } : {};
         const stream = await client.chat.completions.create(
           {
             model: opts.model,
@@ -39,6 +41,7 @@ export function createOpenAICompatibleAdapter(opts: OpenAICompatibleOptions): Pr
             stream_options: { include_usage: true },
             messages: [{ role: 'system', content: req.system }, ...req.messages],
             ...tokenLimit,
+            ...reasoning,
           },
           { signal: req.signal },
         );

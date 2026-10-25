@@ -1,18 +1,15 @@
 import { and, eq, isNull, lt, or, sql } from 'drizzle-orm';
 import { DateTime } from 'luxon';
 import { localDate, type Preferences } from '@friday/shared';
-import {
-  collectNewsForUser,
-  dispatchDueReminders,
-  generateBrief,
-  mergePreferences,
-  postBriefing,
-  schema,
-  sendPendingPushes,
-  type AiGateway,
-  type BriefKind,
-  type Db,
-} from '@friday/api/lib';
+import { collectNewsForUser } from '../services/news.js';
+import { dispatchDueReminders } from '../services/reminders.js';
+import { sendPendingPushes } from '../services/push.js';
+import { generateBrief, type BriefKind } from '../services/brief.js';
+import { mergePreferences } from '../services/prefs.js';
+import { postBriefing } from '../services/briefing.js';
+import * as schema from '../db/schema.js';
+import type { AiGateway } from '../ai/index.js';
+import type { Db } from '../db/client.js';
 
 const { jobRuns, users, userPreferences, notificationDeliveries, devices, newsSources, lessons, lessonProgress } = schema;
 
