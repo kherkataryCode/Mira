@@ -1,6 +1,6 @@
 import { and, desc, eq, gte } from 'drizzle-orm';
 import { XMLParser } from 'fast-xml-parser';
-import { canonicalUrl, classifyImportance, dedupeNews, isMuted, plainExcerpt, titleFingerprint, type Preferences } from '@friday/shared';
+import { canonicalUrl, classifyImportance, cyberRelevance, dedupeNews, exploitationStatus, isMuted, plainExcerpt, titleFingerprint, type Preferences } from '@friday/shared';
 import type { Db } from '../db/client.js';
 import { newsItems, newsSources } from '../db/schema.js';
 import { safeFetchText } from '../util/safe-fetch.js';
@@ -12,14 +12,36 @@ export interface FeedEntry {
   publishedAt: Date | null;
 }
 
-/** Public RSS feeds offered as one-tap suggestions. Nothing is fetched until the user adds one. */
-export const SUGGESTED_SOURCES = [
-  { name: 'BBC News — Technology', url: 'https://feeds.bbci.co.uk/news/technology/rss.xml', category: 'technology' },
-  { name: 'BBC News — Business', url: 'https://feeds.bbci.co.uk/news/business/rss.xml', category: 'business' },
-  { name: 'BBC News — World', url: 'https://feeds.bbci.co.uk/news/world/rss.xml', category: 'world' },
-  { name: 'Hacker News — Front page', url: 'https://hnrss.org/frontpage', category: 'technology' },
-  { name: 'Krebs on Security', url: 'https://krebsonsecurity.com/feed/', category: 'cybersecurity' },
+/**
+ * Cybersecurity feeds every Mira user starts with (editable under News → Sources).
+ * Official advisories first, then established security newsrooms.
+ */
+export const DEFAULT_CYBER_SOURCES = [
+  { name: 'CISA — Cybersecurity Advisories', url: 'https://www.cisa.gov/cybersecurity-advisories/all.xml', category: 'advisory' },
+  { name: 'CISA — ICS Advisories', url: 'https://www.cisa.gov/cybersecurity-advisories/ics-advisories.xml', category: 'ot-security' },
+  { name: 'The Hacker News', url: 'https://feeds.feedburner.com/TheHackersNews', category: 'cybersecurity' },
+  { name: 'BleepingComputer', url: 'https://www.bleepingcomputer.com/feed/', category: 'cybersecurity' },
+  { name: 'SecurityWeek', url: 'https://www.securityweek.com/feed/', category: 'cybersecurity' },
 ];
+
+/** Extra feeds offered as one-tap suggestions. */
+export const SUGGESTED_SOURCES = [
+  ...DEFAULT_CYBER_SOURCES,
+  { name: 'Krebs on Security', url: 'https://krebsonsecurity.com/feed/', category: 'cybersecurity' },
+  { name: 'Dark Reading', url: 'https://www.darkreading.com/rss.xml', category: 'cybersecurity' },
+];
+
+/** Gives a user the default cybersecurity feeds if they have none yet. Idempotent. */
+export async function ensureDefaultSources(db: Db, userId: string): Promise<number> {
+  const existing = await db.select({ id: newsSources.id }).from(newsSources).where(eq(newsSources.userId, userId)).limit(1);
+  if (existing.length) return 0;
+  const rows = await db
+    .insert(newsSources)
+    .values(DEFAULT_CYBER_SOURCES.map((s) => ({ userId, ...s })))
+    .onConflictDoNothing()
+    .returning({ id: newsSources.id });
+  return rows.length;
+}
 
 const parser = new XMLParser({
   ignoreAttributes: false,
@@ -115,9 +137,12 @@ export async function collectNewsForUser(db: Db, userId: string, prefs: Preferen
           const titleKey = titleFingerprint(e.title);
           seen.add(canon);
           if (titleKey) seen.add(`t:${titleKey}`);
+          const text = `${e.title} ${e.summary}`;
           const inserted = await db
             .insert(newsItems)
             .values({
+              relevance: cyberRelevance(e.title, e.summary, { keywords: prefs.news.keywords, otFocus: prefs.learningTopics.includes('ot-security') }),
+              exploitation: exploitationStatus(text),
               userId,
               sourceId: source.id,
               sourceName: source.name,

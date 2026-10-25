@@ -80,7 +80,7 @@ export async function dispatchDueReminders(db: Db, now = new Date(), batch = 100
       const missed = now.getTime() - fireAt.getTime() > MISSED_GRACE_MS;
       const occurrenceKey = `${r.id}:${occurrence.toISOString()}:${fireAt.toISOString()}`;
       const when = DateTime.fromJSDate(occurrence, { zone: r.timezone }).toFormat('ccc d LLL, h:mm a');
-      const body = missed ? `Missed while Friday was offline — was due ${when}` : `Due ${when}`;
+      const body = missed ? `Missed while Mira was offline — was due ${when}` : `Due ${when}`;
 
       const rows: (typeof notificationDeliveries.$inferInsert)[] = [
         { userId: r.userId, reminderId: r.id, kind: 'reminder', occurrenceKey, channel: 'in_app', status: 'sent', title: r.title, body, sentAt: now },

@@ -240,6 +240,19 @@ export const deviceRegisterSchema = z
 
 /* ---------- preferences ---------- */
 
+/** The only topics Mira teaches. Learning and AI-generated concepts never leave the user's selection. */
+export const LEARNING_TOPICS = [
+  { id: 'cybersecurity', label: 'Cybersecurity fundamentals' },
+  { id: 'ot-security', label: 'OT / ICS security' },
+  { id: 'network-security', label: 'Network security' },
+  { id: 'incident-response', label: 'Incident response' },
+  { id: 'cloud-security', label: 'Cloud security' },
+  { id: 'appsec', label: 'Application security' },
+] as const;
+export const learningTopicIds = LEARNING_TOPICS.map((t) => t.id) as unknown as readonly [string, ...string[]];
+export const learningTopicSchema = z.enum(LEARNING_TOPICS.map((t) => t.id) as [LearningTopicId, ...LearningTopicId[]]);
+export type LearningTopicId = (typeof LEARNING_TOPICS)[number]['id'];
+
 const widgetIds = ['brief', 'tasks', 'reminders', 'learning', 'news', 'quickActions'] as const;
 export const widgetIdSchema = z.enum(widgetIds);
 export type WidgetId = z.infer<typeof widgetIdSchema>;
@@ -256,6 +269,8 @@ export const preferencesSchema = z
         microlearning: hmSchema,
         afternoonCheckIn: hmSchema,
         eveningReview: hmSchema,
+        /** Evening cybersecurity news briefing posted in chat. */
+        eveningNews: hmSchema,
       })
       .strict(),
     scheduleEnabled: z
@@ -265,6 +280,7 @@ export const preferencesSchema = z
         microlearning: z.boolean(),
         afternoonCheckIn: z.boolean(),
         eveningReview: z.boolean(),
+        eveningNews: z.boolean(),
       })
       .strict(),
     briefSections: z.array(z.enum(['tasks', 'reminders', 'news', 'learning'])).max(4),
@@ -276,7 +292,8 @@ export const preferencesSchema = z
         quietHoursEnd: hmSchema.nullable(),
       })
       .strict(),
-    learningTopics: z.array(z.string().trim().min(1).max(40)).max(12),
+    /** Learning (and the AI's teaching) is restricted to these topics. */
+    learningTopics: z.array(learningTopicSchema).min(1).max(learningTopicIds.length),
     news: z
       .object({
         categories: z.array(z.string().trim().min(1).max(40)).max(12),
@@ -292,7 +309,16 @@ export const preferencesSchema = z
         briefUsesAi: z.boolean(),
       })
       .strict(),
-    voice: z.object({ speakResponses: z.boolean() }).strict(),
+    voice: z
+      .object({
+        speakResponses: z.boolean(),
+        /** Use Mira's natural server voice when available, else the device voice. */
+        naturalVoice: z.boolean(),
+        /** Chosen device voice per platform (voice name / identifier), null = best female voice. */
+        webVoice: z.string().max(200).nullable(),
+        iosVoice: z.string().max(200).nullable(),
+      })
+      .strict(),
     dashboard: z
       .object({
         order: z.array(widgetIdSchema).max(widgetIds.length),

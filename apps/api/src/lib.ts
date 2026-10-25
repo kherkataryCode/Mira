@@ -10,3 +10,5 @@ export { generateBrief, type BriefKind } from './services/brief.js';
 export { getPreferences, mergePreferences } from './services/prefs.js';
 export { runMigrations } from './db/migrate.js';
 export { seedLessons } from './db/seed.js';
+export { postBriefing, type BriefingSlot } from './services/briefing.js';
+export { ensureDefaultSources } from './services/news.js';

@@ -36,7 +36,7 @@ test('responsive matrix: no horizontal overflow, key controls reachable', async 
       await page.waitForLoadState('networkidle');
       if (await hasHorizontalOverflow(page)) failures.push(`${vp.name} ${p}: horizontal overflow`);
       if (p === '/chat') {
-        const composer = page.getByLabel('Message Friday');
+        const composer = page.getByLabel('Message Mira');
         await expect(composer).toBeInViewport();
         await expect(page.getByRole('button', { name: /voice input|Voice input/ })).toBeInViewport();
       }

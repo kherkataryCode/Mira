@@ -1,13 +1,14 @@
 import { PassThrough } from 'node:stream';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { and, asc, desc, eq, lt } from 'drizzle-orm';
-import { LIMITS, chatSendSchema, type Proposal } from '@friday/shared';
+import { LIMITS, chatSendSchema, isBriefingRequest, type Proposal } from '@friday/shared';
 import { conversations, messages } from '../db/schema.js';
 import { authUser, type AuthUser } from '../auth/plugin.js';
 import { conflict, notFound } from '../util/errors.js';
 import { parse } from '../util/validate.js';
 import { getPreferences } from '../services/prefs.js';
 import { buildContext, proposalsFor, systemPrompt } from '../services/assistant.js';
+import { postBriefing } from '../services/briefing.js';
 import { AiError, USER_MESSAGES } from '../ai/index.js';
 import type { GatewayProviderId } from '../ai/types.js';
 
@@ -149,8 +150,33 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
       .values({ conversationId: conversation.id, userId: me.id, role: 'assistant', content: '', status: 'streaming', proposals })
       .returning({ id: messages.id });
 
+    if (isBriefingRequest(body.content)) {
+      return streamBriefing(reply, me, conversation.id, assistant!.id, userMsg.id);
+    }
     return streamReply(reply, me, conversation.id, assistant!.id, { conversationId: conversation.id, userMessageId: userMsg.id }, proposals, userMsg.id);
   });
+
+  /** On-demand briefing typed in chat: Mira replies with today's briefing in this conversation. */
+  async function streamBriefing(reply: FastifyReply, me: AuthUser, conversationId: string, assistantId: string, userMessageId: string) {
+    const out = new PassThrough();
+    const write = (event: Record<string, unknown>) => {
+      if (!out.writableEnded) out.write(`${JSON.stringify(event)}\n`);
+    };
+    void reply.header('cache-control', 'no-store').header('x-accel-buffering', 'no').type('application/x-ndjson').send(out);
+    write({ type: 'meta', conversationId, userMessageId, assistantMessageId: assistantId, proposals: [] });
+    try {
+      const posted = await postBriefing(app.db, app.ai, me.id, 'ondemand', { conversationId, messageId: assistantId, collectNews: true });
+      write({ type: 'delta', text: posted.markdown });
+      write({ type: 'done', provider: 'mira-briefing', model: 'briefing', demo: false });
+    } catch (err) {
+      logUnexpected(app, err);
+      await app.db.update(messages).set({ status: 'error', errorCode: 'briefing_failed' }).where(eq(messages.id, assistantId));
+      write({ type: 'error', code: 'briefing_failed', message: 'Mira could not prepare the briefing. Please try again.', partial: false });
+    } finally {
+      out.end();
+    }
+    return reply;
+  }
 
   /** Regenerates a failed/cancelled (or any) assistant reply in place. */
   app.post<IdParams>('/chat/messages/:id/retry', chatLimit, async (req, reply) => {
@@ -182,7 +208,7 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
   app.get('/chat/conversations', async (req) => {
     const me = authUser(req);
     const rows = await app.db
-      .select({ id: conversations.id, title: conversations.title, updatedAt: conversations.updatedAt })
+      .select({ id: conversations.id, title: conversations.title, updatedAt: conversations.updatedAt, kind: conversations.kind, localDate: conversations.localDate })
       .from(conversations)
       .where(eq(conversations.userId, me.id))
       .orderBy(desc(conversations.updatedAt))
@@ -204,6 +230,7 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
         proposals: messages.proposals,
         errorCode: messages.errorCode,
         viaVoice: messages.viaVoice,
+        kind: messages.kind,
         createdAt: messages.createdAt,
       })
       .from(messages)

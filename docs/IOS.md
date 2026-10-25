@@ -47,7 +47,7 @@ eas build --profile production --platform ios
 eas submit --platform ios
 ```
 
-Set `EXPO_PUBLIC_API_URL` to your public HTTPS API (e.g. the `friday-api` Render URL) for production builds. App Store review requires a privacy policy URL and accurate data-use disclosures (Friday stores account data on your server and sends chat text to the AI providers you configure).
+Set `EXPO_PUBLIC_API_URL` to your public HTTPS API (e.g. the `friday-api` Render URL) for production builds. App Store review requires a privacy policy URL and accurate data-use disclosures (Mira stores account data on your server and sends chat text to the AI providers you configure).
 
 ## 5. Orientation & accessibility
 

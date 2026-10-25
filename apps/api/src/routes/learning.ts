@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { and, asc, desc, eq, inArray, isNotNull, lte, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
 import { INITIAL_REVIEW_STATE, qualityFromScore, quizAnswerSchema, reviewSchema, scheduleReview } from '@friday/shared';
 import { lessonProgress, lessons, quizAttempts } from '../db/schema.js';
 import { authUser } from '../auth/plugin.js';
@@ -27,6 +27,12 @@ function publicLesson(l: LessonRow, p?: ProgressRow, full = false) {
           explanation: l.explanation,
           example: l.example,
           takeaway: l.takeaway,
+          steps: l.steps,
+          diagram: l.diagram,
+          insight: l.insight,
+          question: l.question,
+          learnMore: l.learnMore,
+          origin: l.origin,
           quiz: l.quiz.map((q) => ({ q: q.q, options: q.options })),
         }
       : {}),
@@ -39,8 +45,11 @@ function publicLesson(l: LessonRow, p?: ProgressRow, full = false) {
 export async function learningRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', app.authenticate);
 
-  async function getLesson(id: string) {
-    const rows = await app.db.select().from(lessons).where(eq(lessons.id, id)).limit(1);
+  /** Curated lessons, plus AI lessons generated for this user only. */
+  const visibleTo = (userId: string) => or(isNull(lessons.ownerUserId), eq(lessons.ownerUserId, userId));
+
+  async function getLesson(id: string, userId: string) {
+    const rows = await app.db.select().from(lessons).where(and(eq(lessons.id, id), visibleTo(userId))).limit(1);
     if (!rows[0]) throw notFound('Lesson');
     return rows[0];
   }
@@ -57,44 +66,45 @@ export async function learningRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Querystring: { topic?: string; filter?: string } }>('/learn/lessons', async (req) => {
     const me = authUser(req);
     const prefs = await getPreferences(app.db, me.id);
-    const topic = typeof req.query.topic === 'string' ? req.query.topic.slice(0, 40) : undefined;
+    // Learning is restricted to the topics the user selected in Settings.
+    const allowed = prefs.learningTopics as string[];
+    const topic = typeof req.query.topic === 'string' && allowed.includes(req.query.topic) ? req.query.topic : undefined;
     const all = await app.db
       .select()
       .from(lessons)
-      .where(topic ? eq(lessons.topic, topic) : undefined)
+      .where(and(visibleTo(me.id), topic ? eq(lessons.topic, topic) : inArray(lessons.topic, allowed)))
       .orderBy(asc(lessons.topic), asc(lessons.title))
       .limit(200);
     const progress = await progressMap(me.id, all.map((l) => l.id));
-    const preferred = new Set(prefs.learningTopics.map((t) => t.toLowerCase()));
     let list = all.map((l) => publicLesson(l, progress.get(l.id)));
     if (req.query.filter === 'saved') list = list.filter((l) => l.progress?.saved);
     if (req.query.filter === 'history') list = list.filter((l) => l.progress);
     // "For you": preferred topics first, unfinished before completed.
-    const rank = (l: (typeof list)[number]) => (preferred.has(l.topic) ? 0 : 2) + (l.progress?.status === 'completed' ? 1 : 0);
+    const rank = (l: (typeof list)[number]) => (l.progress?.status === 'completed' ? 1 : 0);
     list.sort((a, b) => rank(a) - rank(b));
     const continueLearning = list.filter((l) => l.progress?.status === 'started');
     const featured = list.find((l) => !l.progress || l.progress.status !== 'completed') ?? list[0] ?? null;
-    const topics = [...new Set(all.map((l) => l.topic))].sort();
+    const topics = allowed;
     return { featured, continueLearning, lessons: list, topics };
   });
 
   app.get<IdParams>('/learn/lessons/:id', async (req) => {
     const me = authUser(req);
-    const lesson = await getLesson(req.params.id);
+    const lesson = await getLesson(req.params.id, me.id);
     const p = (await progressMap(me.id, [lesson.id])).get(lesson.id);
     return { lesson: publicLesson(lesson, p, true) };
   });
 
   app.post<IdParams>('/learn/lessons/:id/start', async (req) => {
     const me = authUser(req);
-    const lesson = await getLesson(req.params.id);
+    const lesson = await getLesson(req.params.id, me.id);
     await app.db.insert(lessonProgress).values({ userId: me.id, lessonId: lesson.id }).onConflictDoNothing();
     return { ok: true };
   });
 
   app.post<IdParams & { Body: unknown }>('/learn/lessons/:id/save', async (req) => {
     const me = authUser(req);
-    const lesson = await getLesson(req.params.id);
+    const lesson = await getLesson(req.params.id, me.id);
     const saved = (req.body as { saved?: unknown } | undefined)?.saved;
     if (typeof saved !== 'boolean') throw badRequest('saved must be boolean');
     await app.db
@@ -106,7 +116,7 @@ export async function learningRoutes(app: FastifyInstance): Promise<void> {
 
   app.post<IdParams>('/learn/lessons/:id/quiz', async (req) => {
     const me = authUser(req);
-    const lesson = await getLesson(req.params.id);
+    const lesson = await getLesson(req.params.id, me.id);
     const { answers } = parse(quizAnswerSchema, req.body);
     if (answers.length !== lesson.quiz.length) throw badRequest(`Expected ${lesson.quiz.length} answers`);
     const results = lesson.quiz.map((q, i) => ({ correct: answers[i] === q.answer, answer: q.answer, why: q.why }));
@@ -137,13 +147,13 @@ export async function learningRoutes(app: FastifyInstance): Promise<void> {
       score,
       results,
       nextReviewAt: next.dueAt.toISOString(),
-      note: 'One quiz is a snapshot, not mastery — Friday will bring this lesson back for spaced review.',
+      note: 'One quiz is a snapshot, not mastery — Mira will bring this lesson back for spaced review.',
     };
   });
 
   app.post<IdParams>('/learn/lessons/:id/review', async (req) => {
     const me = authUser(req);
-    const lesson = await getLesson(req.params.id);
+    const lesson = await getLesson(req.params.id, me.id);
     const { quality } = parse(reviewSchema, req.body);
     const existing = (await progressMap(me.id, [lesson.id])).get(lesson.id);
     if (!existing) throw badRequest('Start the lesson first');

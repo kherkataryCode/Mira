@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as Speech from 'expo-speech';
+import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
+import { speakableText } from '@friday/shared';
+import { API_URL, api, getToken } from './api';
 
 export type VoiceState = 'unavailable' | 'idle' | 'listening' | 'denied' | 'error';
 
@@ -45,7 +48,7 @@ export function useVoiceInput(onFinal: (text: string) => void) {
       mod.ExpoSpeechRecognitionModule.addListener('error', (e) => {
         if (e.error === 'not-allowed') {
           setState('denied');
-          setMessage('Microphone or speech permission is off. Enable it in iOS Settings → Friday.');
+          setMessage('Microphone or speech permission is off. Enable it in iOS Settings → Mira.');
         } else if (e.error === 'no-speech' || e.error === 'speech-timeout') {
           setMessage("Didn't catch that — try again.");
           setState('idle');
@@ -70,7 +73,7 @@ export function useVoiceInput(onFinal: (text: string) => void) {
     const perm = await mod.ExpoSpeechRecognitionModule.requestPermissionsAsync();
     if (!perm.granted) {
       setState('denied');
-      setMessage('Microphone or speech permission is off. Enable it in iOS Settings → Friday.');
+      setMessage('Microphone or speech permission is off. Enable it in iOS Settings → Mira.');
       return;
     }
     finalText.current = '';
@@ -89,11 +92,67 @@ export function useVoiceInput(onFinal: (text: string) => void) {
   return { state, interim, message, start, stop, cancel };
 }
 
-export function speak(text: string) {
-  Speech.stop();
-  Speech.speak(text.replace(/^Demo mode[^\n]*\n\n/, '').slice(0, 1000), { rate: 1.0 });
+/* ---------------------------------------------------------------- */
+/* Mira's voice                                                      */
+/* ---------------------------------------------------------------- */
+
+/** Natural-sounding female iOS voices, best first. "Enhanced"/"Premium" variants are preferred. */
+const FEMALE_VOICES = ['Ava', 'Zoe', 'Samantha', 'Allison', 'Susan', 'Serena', 'Karen', 'Moira', 'Tessa', 'Fiona', 'Isha', 'Veena', 'Nicky', 'Kate', 'Victoria'];
+
+export async function englishVoices(): Promise<Speech.Voice[]> {
+  try {
+    return (await Speech.getAvailableVoicesAsync()).filter((v) => v.language.toLowerCase().startsWith('en'));
+  } catch {
+    return [];
+  }
+}
+
+export async function pickMiraVoice(preferred: string | null | undefined): Promise<Speech.Voice | null> {
+  const voices = await englishVoices();
+  if (preferred) {
+    const exact = voices.find((v) => v.identifier === preferred);
+    if (exact) return exact;
+  }
+  const score = (v: Speech.Voice) => {
+    const i = FEMALE_VOICES.findIndex((n) => v.name.startsWith(n));
+    const quality = v.quality === Speech.VoiceQuality.Enhanced || /premium|enhanced/i.test(v.name) ? -100 : 0;
+    return (i < 0 ? 1000 : i) + quality;
+  };
+  const ranked = [...voices].sort((a, b) => score(a) - score(b));
+  return ranked[0] && score(ranked[0]) < 1000 ? ranked[0] : null;
+}
+
+let player: AudioPlayer | null = null;
+
+/**
+ * Speaks as Mira: the natural server voice when available (a lifelike female voice),
+ * otherwise the best female voice installed on this iPhone. Resolves to which was used.
+ */
+export async function speak(text: string, opts: { natural?: boolean; voiceId?: string | null } = {}): Promise<'natural' | 'device'> {
+  stopSpeaking();
+  if (opts.natural !== false) {
+    try {
+      const { url } = await api.post<{ url: string }>('/voice/clips', { text: text.slice(0, 20000) });
+      await setAudioModeAsync({ playsInSilentMode: true });
+      player = createAudioPlayer({ uri: `${API_URL}${url}`, headers: { authorization: `Bearer ${getToken() ?? ''}` } });
+      player.play();
+      return 'natural';
+    } catch {
+      /* fall back to the device voice */
+    }
+  }
+  const voice = await pickMiraVoice(opts.voiceId);
+  Speech.speak(speakableText(text, 3000), { voice: voice?.identifier, language: voice?.language ?? 'en-IN', pitch: 1.05, rate: 1.0 });
+  return 'device';
 }
 
 export function stopSpeaking() {
+  try {
+    player?.pause();
+    player?.remove();
+  } catch {
+    /* already released */
+  }
+  player = null;
   Speech.stop();
 }

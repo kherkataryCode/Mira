@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { and, eq, max, sql, type SQL } from 'drizzle-orm';
-import { newsFeedbackSchema, newsSourceCreateSchema } from '@friday/shared';
+import { CYBER_RELEVANCE_THRESHOLD, newsFeedbackSchema, newsSourceCreateSchema } from '@friday/shared';
 import { newsItems, newsSources } from '../db/schema.js';
 import { authUser } from '../auth/plugin.js';
 import { badRequest, conflict, notFound } from '../util/errors.js';
@@ -16,9 +16,11 @@ const STALE_MS = 36 * 3_600_000;
 export async function newsRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', app.authenticate);
 
-  app.get<{ Querystring: { importance?: string; saved?: string; category?: string; limit?: string } }>('/news', async (req) => {
+  app.get<{ Querystring: { importance?: string; saved?: string; category?: string; limit?: string; scope?: string } }>('/news', async (req) => {
     const me = authUser(req);
     const where: SQL[] = [eq(newsItems.userId, me.id), eq(newsItems.hidden, false)];
+    // Default: only stories that are actually about cybersecurity. `scope=all` shows everything fetched.
+    if (req.query.scope !== 'all') where.push(sql`(${newsItems.relevance} >= ${CYBER_RELEVANCE_THRESHOLD} or ${newsItems.isDemo})`);
     const imp = req.query.importance;
     if (imp && (IMPORTANCE as readonly string[]).includes(imp)) where.push(eq(newsItems.importance, imp as (typeof IMPORTANCE)[number]));
     if (req.query.saved === 'true') where.push(eq(newsItems.saved, true));
@@ -28,7 +30,11 @@ export async function newsRoutes(app: FastifyInstance): Promise<void> {
       .select()
       .from(newsItems)
       .where(and(...where))
-      .orderBy(sql`array_position(array['breaking','important','relevant','background'], ${newsItems.importance})`, sql`${newsItems.publishedAt} desc nulls last`)
+      .orderBy(
+        sql`array_position(array['exploited','proof-of-concept','not-reported'], ${newsItems.exploitation})`,
+        sql`array_position(array['breaking','important','relevant','background'], ${newsItems.importance})`,
+        sql`${newsItems.publishedAt} desc nulls last`,
+      )
       .limit(limit);
     const [status] = await app.db
       .select({ lastSuccessAt: max(newsSources.lastSuccessAt), sources: sql<number>`count(*)::int`, failing: sql<number>`count(*) filter (where ${newsSources.consecutiveFailures} > 0)::int` })

@@ -46,7 +46,7 @@ export default function HomeScreen() {
           <Title size="xl">{data.greeting}</Title>
           <Body muted>{data.counts.tasksToday} tasks · {data.counts.reminders} reminders today</Body>
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Talk to Friday" onPress={() => router.push('/chat')} style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Talk to Mira" onPress={() => router.push('/chat')} style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
           <Mic color={colors.onAccent} size={22} />
         </Pressable>
       </View>
@@ -61,6 +61,23 @@ export default function HomeScreen() {
         </View>
       </View>
       {briefError ? <ErrorNote message={briefError} /> : null}
+      <Button
+        variant="primary"
+        title="Prepare today’s briefing"
+        pending={briefPending}
+        onPress={async () => {
+          setBriefPending(true);
+          setBriefError(null);
+          try {
+            const r = await api.post<{ conversationId: string }>('/briefings/now', {});
+            router.push({ pathname: '/chat', params: { c: r.conversationId } });
+          } catch (e) {
+            setBriefError(e instanceof Error ? e.message : 'Could not prepare the briefing.');
+          } finally {
+            setBriefPending(false);
+          }
+        }}
+      />
 
       <View style={{ flexDirection: twoCol ? 'row' : 'column', gap: 16 }}>
         {column(

@@ -27,6 +27,11 @@ export async function clearToken(): Promise<void> {
   token = null;
   await SecureStore.deleteItemAsync(TOKEN_KEY);
 }
+/** The current session token (for media players that need an auth header). */
+export function getToken(): string | null {
+  return token;
+}
+
 export function setUnauthorizedHandler(fn: () => void) {
   onUnauthorized = fn;
 }
@@ -39,7 +44,7 @@ async function request<T>(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', path: str
   try {
     res = await fetch(`${API_URL}${path}`, { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined });
   } catch {
-    throw new ApiError(0, 'network', "Can't reach Friday. Check your connection and try again.");
+    throw new ApiError(0, 'network', "Can't reach Mira. Check your connection and try again.");
   }
   const text = await res.text();
   let data: unknown;

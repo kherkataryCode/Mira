@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.0 — 2026-10-25 — Mira
+
+- Renamed the assistant to **Mira** (web, iOS, prompts, notifications).
+- Daily briefings posted into a per-day chat thread: morning (plan + concept of the day + security insight + logical question), evening (top cybersecurity news + tomorrow), and on demand (button or “give me my daily summary”).
+- Cybersecurity news: default advisory feeds, deterministic relevance scoring, exploitation status from source text, AI briefs grounded in feed text only, no repeats within a day.
+- Learning restricted to selected topics; new cybersecurity and OT curriculum with steps, architecture views, insights and scenario questions; topic-locked, schema-validated AI lessons with curated links.
+- Mira's voice: natural female server voice (OpenAI TTS) on web and iOS, with best-female-device-voice fallback and a voice picker.
+- Fixed tab-indented `render.yaml` and CI workflow that did not parse.
+
 ## 0.1.0 — 2026-10-24
 
 Initial implementation.

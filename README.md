@@ -1,8 +1,8 @@
-# Friday — personal AI assistant for web and iOS
+# Mira — personal AI assistant for web and iOS
 
 **Plan. Learn. Stay informed. Be productive.**
 
-Friday is a calm personal assistant: tasks and reminders you can type or say in plain language, a daily brief built from your real data, bite-sized lessons with spaced review, news from sources you choose, private notes, and a chat assistant that **proposes** actions but never takes them without your confirmation.
+Mira is a calm personal assistant: tasks and reminders you can type or say in plain language, a daily brief built from your real data, bite-sized lessons with spaced review, news from sources you choose, private notes, and a chat assistant that **proposes** actions but never takes them without your confirmation.
 
 ![Design concept](design/friday-web-ios-concept.png)
 
@@ -19,6 +19,22 @@ Friday is a calm personal assistant: tasks and reminders you can type or say in 
 > **Status: a working, tested codebase — not a production service.** See [What was verified](#what-was-verified) and [Known limitations](#known-limitations). Nothing has been deployed by the author of this repository; deployment URLs, Apple signing and provider keys are yours to set up.
 
 ---
+
+## Mira's daily briefings (what's new)
+
+Mira is a cybersecurity-focused assistant. Every day she posts into that day's **chat thread** (look for the calendar icon in chat history):
+
+| When | What | Setting |
+|---|---|---|
+| Morning (default 08:00) | Your reminders and to-dos for the day, **Concept of the Day** (how it works, architecture view, real-world example, learn-more link) and a **Security / OT Security Insight** with a logical question | Settings → Daily briefings → Morning briefing |
+| Evening (default 18:00) | **Top Cybersecurity News** from the last 72 hours — date, brief, affected versions (only when the source states them), exploitation status, action, source link — plus tomorrow's reminders | Settings → Daily briefings → Evening cybersecurity news |
+| Any time | Everything above in one briefing | **Briefing** button in Chat, **Today's briefing** on Home, or type “give me my daily summary” |
+
+How it stays relevant and honest:
+
+- **News** comes from cybersecurity feeds every user starts with (CISA advisories, CISA ICS advisories, The Hacker News, BleepingComputer, SecurityWeek — editable under News → Sources). Each story gets a deterministic relevance score; only security stories appear. Exploitation status is taken from the source text only. When an AI provider is connected, Mira rewrites each item's brief/affected/action **using only the feed text**; otherwise she shows the feed's own summary. If there is no news, she says so.
+- **Learning** is restricted to the topics you pick in Settings (default: Cybersecurity fundamentals + OT / ICS security). The curated curriculum covers OT segmentation, egress filtering, remote access, patching, inventory, Zero Trust, MFA, DNS monitoring, incident response, ransomware readiness, cloud and application security. When you've seen them all and an AI provider is connected, Mira writes new lessons — the topic is chosen by code from your selection, output is schema-checked and rejected if off-topic, and links come from a curated reference list, never from the model.
+- **Mira's voice:** with an OpenAI key, Mira speaks with a natural female voice (`gpt-4o-mini-tts`, voice `nova` by default — change `OPENAI_TTS_VOICE`, e.g. `shimmer` or `coral`). Without it, she uses the most natural female voice on your device; pick one under Settings → Mira's voice. On iPhone, download a Premium/Enhanced voice (Ava or Zoe) in iOS Settings → Accessibility → Spoken Content → Voices for the best result.
 
 ## Contents
 
@@ -42,8 +58,8 @@ More docs: [Architecture](docs/ARCHITECTURE.md) · [Threat model](docs/THREAT_MO
 **Prerequisites:** Node.js 22 (`.node-version`), npm 10, Docker Desktop (for PostgreSQL), Git.
 
 ```bash
-git clone https://github.com/YOUR-USERNAME/friday-assistant.git
-cd friday-assistant
+git clone https://github.com/YOUR-USERNAME/mira-assistant.git
+cd mira-assistant
 npm ci                                   # installs every workspace from the lockfile
 cp .env.example .env                     # DEMO_MODE=true by default
 docker compose up -d postgres            # PostgreSQL 16 on localhost:5432 (+ friday_test DB)
@@ -111,7 +127,7 @@ All configuration is via environment variables, validated at startup (`apps/api/
 | `OPENCLAW_ENABLED` / `OPENCLAW_URL` / `OPENCLAW_TOKEN` | api | `false` | See [docs/OPENCLAW.md](docs/OPENCLAW.md) |
 | `PUSH_ENABLED` / `EXPO_ACCESS_TOKEN` | worker | `false` | Server push via Expo Push Service → APNs |
 | `API_INTERNAL_URL` or `API_INTERNAL_HOSTPORT` | web | `http://localhost:4000` | Where the web server proxies `/api/*` |
-| `FRIDAY_HTTPS` | web | — | `true` in production: HSTS + `upgrade-insecure-requests` |
+| `MIRA_HTTPS` | web | — | `true` in production: HSTS + `upgrade-insecure-requests` |
 | `EXPO_PUBLIC_API_URL` | mobile | `http://localhost:4000` | **Public** HTTPS API URL baked into the app |
 | `IOS_BUNDLE_ID` / `EAS_PROJECT_ID` | mobile build | `com.example.friday` / — | See [docs/IOS.md](docs/IOS.md) |
 
@@ -138,13 +154,13 @@ How the gateway behaves (see `apps/api/src/ai/gateway.ts` and its tests):
 ## 5. Upload to GitHub
 
 ```bash
-cd friday-assistant
+cd mira-assistant
 git status                       # if this is already a repo, skip `git init`
 git init -b main                 # only for a fresh folder
 git add .
 git status                       # check: no .env, keys, .p8/.pem files, database dumps
-git commit -m "Initial Friday assistant"
-git remote add origin https://github.com/YOUR-USERNAME/friday-assistant.git
+git commit -m "Initial Mira assistant"
+git remote add origin https://github.com/YOUR-USERNAME/mira-assistant.git
 git push -u origin main
 ```
 
@@ -193,12 +209,12 @@ Full step-by-step guide: [docs/IOS.md](docs/IOS.md).
 | SSL errors connecting to the DB | Set `DATABASE_SSL=true` for external URLs; Render's internal URL works without it |
 | Migration fails | Read the SQL error in the deploy log; take a backup before any manual change ([docs/BACKUP_RESTORE.md](docs/BACKUP_RESTORE.md)) |
 | Web shows “Origin not allowed” / 403 on every action | `WEB_ORIGINS` on the API must exactly equal the browser origin (scheme + host + port) |
-| Web shows “Friday is temporarily unreachable” | Web can't reach the API: check `API_INTERNAL_URL` / `API_INTERNAL_HOSTPORT` and the API health check |
+| Web shows “Mira is temporarily unreachable” | Web can't reach the API: check `API_INTERNAL_URL` / `API_INTERNAL_HOSTPORT` and the API health check |
 | 429 Too many requests | Per-IP limits; raise `RATE_LIMIT_PER_MIN` if many users share one IP |
-| Chat says provider quota/billing reached | Top up or change the provider order; Friday won't retry quota errors |
+| Chat says provider quota/billing reached | Top up or change the provider order; Mira won't retry quota errors |
 | “AI budget used up” | Raise the monthly budget in Settings or `AI_GLOBAL_MONTHLY_BUDGET_USD` |
 | Reminders late | Worker down or sleeping (free plan) — check System Health → worker heartbeat and `reminders.dispatch` |
-| No phone alerts | Permission denied (iOS Settings → Friday), not a physical device, `PUSH_ENABLED=false`, missing APNs key in EAS, or wrong bundle ID |
+| No phone alerts | Permission denied (iOS Settings → Mira), not a physical device, `PUSH_ENABLED=false`, missing APNs key in EAS, or wrong bundle ID |
 | Voice button disabled on iPhone | Running in Expo Go — make a development build |
 | Voice unavailable on the web | Browser lacks the Web Speech API (e.g. Firefox); typing still works |
 | News never updates | No sources added, sources failing (see News → Sources), or `newsScans` disabled in Settings |
@@ -237,7 +253,7 @@ Run in the build environment (Linux, Node 22.22, PostgreSQL 16.4, Chromium 1243 
 
 - **Authentication** is email + password (Argon2id) with opaque, revocable sessions — no passkeys/OAuth yet, no password reset email (no email provider is configured). An owner can reset a password by deleting and recreating the account, or with SQL.
 - **Rate limiting** is in-memory per API instance; run a single API instance or add a shared store before scaling out.
-- **Times in forms** use the device's timezone, while displays and natural-language parsing use your Friday timezone setting.
+- **Times in forms** use the device's timezone, while displays and natural-language parsing use your Mira timezone setting.
 - **Server push** goes through the Expo Push Service (which delivers via APNs with your key); a direct-APNs sender is not implemented.
 - **Voice** uses on-device/OS speech recognition (Web Speech API in browsers, iOS speech framework in the app). No wake word, no background listening.
 - **News** reads RSS/Atom feeds you add; it stores titles, links and short excerpts only and does not fetch full articles.

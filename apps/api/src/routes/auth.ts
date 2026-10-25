@@ -9,6 +9,7 @@ import { HttpError, conflict, notFound } from '../util/errors.js';
 import { parse } from '../util/validate.js';
 import { savePreferences } from '../services/prefs.js';
 import { audit } from '../services/audit.js';
+import { ensureDefaultSources } from '../services/news.js';
 
 const MAX_FAILED = 5;
 const LOCK_MINUTES = 15;
@@ -56,6 +57,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     const user = inserted[0];
     if (!user) throw conflict('An account with that email already exists');
     await savePreferences(app.db, user.id, { ...DEFAULT_PREFERENCES, timezone: body.timezone ?? DEFAULT_PREFERENCES.timezone });
+    await ensureDefaultSources(app.db, user.id);
     await audit(app.db, { userId: user.id, action: 'auth.register', ip: req.ip });
     const client = req.headers['x-friday-client'] === 'mobile' ? 'mobile' : 'web';
     const session = await startSession(reply, user.id, client, req.headers['user-agent']);

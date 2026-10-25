@@ -1,6 +1,6 @@
 # Threat model
 
-Scope: a single owner (or small group) running Friday on Render with the web and iOS clients. This is a practical model, not a guarantee; residual risks are listed at the end.
+Scope: a single owner (or small group) running Mira on Render with the web and iOS clients. This is a practical model, not a guarantee; residual risks are listed at the end.
 
 ## Assets
 

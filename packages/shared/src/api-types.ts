@@ -1,4 +1,4 @@
-/** Response shapes of the Friday API, shared by the web and iOS clients (types only). */
+/** Response shapes of the Mira API, shared by the web and iOS clients (types only). */
 import type { Preferences, Proposal, Recurrence } from './schemas.js';
 
 export interface User {
@@ -51,6 +51,12 @@ export interface Lesson {
   example?: string;
   takeaway?: string;
   quiz?: { q: string; options: string[] }[];
+  steps?: string[];
+  diagram?: string | null;
+  insight?: { title: string; body: string; bullets: string[] } | null;
+  question?: string | null;
+  learnMore?: { label: string; url: string } | null;
+  origin?: 'curated' | 'ai';
   progress: { status: 'started' | 'completed'; saved: boolean; reviewDueAt: string | null; lastScore: number | null; repetitions: number } | null;
 }
 
@@ -66,6 +72,8 @@ export interface NewsItem {
   fetchedAt: string;
   saved: boolean;
   isDemo: boolean;
+  relevance?: number;
+  exploitation?: 'exploited' | 'proof-of-concept' | 'not-reported';
 }
 
 export interface Note {
@@ -98,6 +106,8 @@ export interface ChatMessage {
   proposals: Proposal[] | null;
   errorCode: string | null;
   viaVoice?: boolean;
+  /** "briefing" = a daily briefing Mira posted (markdown). */
+  kind?: 'chat' | 'briefing';
   createdAt: string;
 }
 

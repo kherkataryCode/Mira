@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View, type ScrollViewInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
-import { ArrowUp, Copy, Mic, Plus, RotateCcw, Square, Volume2, VolumeX, X } from 'lucide-react-native';
+import { ArrowUp, Copy, Mic, Plus, RotateCcw, Sparkles, Square, Volume2, VolumeX, X } from 'lucide-react-native';
+import { useLocalSearchParams } from 'expo-router';
+import { Markdown } from '@/components/Markdown';
 import type { ChatMessage, Preferences, Proposal } from '@friday/shared';
 import { api, errorMessage, newClientId, streamChat, type ChatEvent } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -53,19 +55,50 @@ export default function ChatScreen() {
     }, []),
   );
 
+  const { c: requested } = useLocalSearchParams<{ c?: string }>();
+  const openConversation = useCallback(async (id: string) => {
+    const c = await api.get<{ messages: ChatMessage[] }>(`/chat/conversations/${id}`);
+    setConversationId(id);
+    setMessages(c.messages);
+  }, []);
+
   useEffect(() => {
-    api
-      .get<{ conversations: { id: string }[] }>('/chat/conversations')
-      .then(async (r) => {
-        const first = r.conversations[0];
-        if (!first) return;
-        const c = await api.get<{ messages: ChatMessage[] }>(`/chat/conversations/${first.id}`);
-        setConversationId(first.id);
-        setMessages(c.messages);
+    // Open the requested thread, else today's briefing thread, else the latest chat.
+    Promise.all([
+      api.get<{ conversations: { id: string }[] }>('/chat/conversations'),
+      api.get<{ conversationId: string | null }>('/briefings/today').catch(() => ({ conversationId: null })),
+    ])
+      .then(async ([list, today]) => {
+        const target = (requested && list.conversations.find((c) => c.id === requested)?.id) ?? today.conversationId ?? list.conversations[0]?.id;
+        if (target) await openConversation(target);
       })
       .catch((e: unknown) => setError(errorMessage(e)));
     return () => abortRef.current?.abort();
-  }, []);
+  }, [openConversation, requested]);
+
+  const [preparing, setPreparing] = useState(false);
+  const prepareBriefing = async () => {
+    setPreparing(true);
+    setError(null);
+    try {
+      const r = await api.post<{ conversationId: string }>('/briefings/now', {});
+      await openConversation(r.conversationId);
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setPreparing(false);
+    }
+  };
+  const [speakingId, setSpeakingId] = useState<string | null>(null);
+  const readAloud = (m: UiMessage) => {
+    if (speakingId === m.id) {
+      stopSpeaking();
+      setSpeakingId(null);
+      return;
+    }
+    setSpeakingId(m.id);
+    void speak(m.content, { natural: prefs?.voice.naturalVoice, voiceId: prefs?.voice.iosVoice });
+  };
 
   const run = async (path: string, body: unknown, userText?: string, existingId?: string) => {
     const ctl = new AbortController();
@@ -94,8 +127,9 @@ export default function ChatScreen() {
             setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, content: m.content + e.text } : m)));
           } else if (e.type === 'done') {
             const id = assistantId;
-            setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, status: 'complete', provider: e.provider, model: e.model, demo: e.demo } : m)));
-            if (speakOn) speak(full);
+            const kind = e.provider === 'mira-briefing' ? ('briefing' as const) : ('chat' as const);
+            setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, status: 'complete', provider: e.provider, model: e.model, demo: e.demo, kind } : m)));
+            if (speakOn) void speak(full, { natural: prefs?.voice.naturalVoice, voiceId: prefs?.voice.iosVoice });
           } else {
             const id = assistantId;
             setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, status: e.code === 'cancelled' ? 'cancelled' : 'error', errorText: e.message } : m)));
@@ -156,6 +190,9 @@ export default function ChatScreen() {
           <IconButton label={speakOn ? 'Mute spoken replies' : 'Speak replies aloud'} onPress={toggleSpeak}>
             {speakOn ? <Volume2 color={colors.text} size={20} /> : <VolumeX color={colors.muted} size={20} />}
           </IconButton>
+          <IconButton label="Prepare today's briefing" onPress={() => void prepareBriefing()} disabled={preparing || Boolean(streaming)}>
+            <Sparkles color={preparing ? colors.muted : colors.accentText} size={20} />
+          </IconButton>
           <IconButton label="New chat" onPress={() => { abortRef.current?.abort(); setConversationId(null); setMessages([]); }}>
             <Plus color={colors.text} size={20} />
           </IconButton>
@@ -164,8 +201,8 @@ export default function ChatScreen() {
         <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 12, maxWidth: 900, width: '100%', alignSelf: 'center' }} onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })} keyboardShouldPersistTaps="handled">
           {messages.length === 0 ? (
             <View style={{ alignItems: 'center', gap: 10, marginTop: 24 }}>
-              <Title>How can I help?</Title>
-              {['What do I have today?', 'Remind me to call the dentist tomorrow at 5 PM'].map((s) => (
+              <Title>Hi, I’m Mira. How can I help?</Title>
+              {['Give me my daily summary', 'What do I have today?', 'Explain egress filtering for OT networks'].map((s) => (
                 <Pressable key={s} onPress={() => setInput(s)} style={{ minHeight: 44, borderRadius: 999, borderWidth: 1, borderColor: colors.line, paddingHorizontal: 16, justifyContent: 'center' }}>
                   <Body muted>{s}</Body>
                 </Pressable>
@@ -176,7 +213,8 @@ export default function ChatScreen() {
             <View key={m.id} style={{ alignItems: m.role === 'user' ? 'flex-end' : 'flex-start', gap: 6 }}>
               <View
                 style={{
-                  maxWidth: '88%',
+                  maxWidth: m.kind === 'briefing' ? '100%' : '88%',
+                  width: m.kind === 'briefing' ? '100%' : undefined,
                   borderRadius: 22,
                   paddingHorizontal: 14,
                   paddingVertical: 10,
@@ -186,14 +224,19 @@ export default function ChatScreen() {
                   gap: 6,
                 }}
               >
+                {m.kind === 'briefing' ? <Badge label="Mira · Daily briefing" tone="accent" /> : null}
                 {m.role === 'assistant' && (m.demo || m.provider === 'demo') ? <Badge label="Demo response" tone="demo" /> : null}
-                <Text selectable style={{ color: colors.text, fontFamily: fonts.sans, fontSize: 15, lineHeight: 21 }}>
-                  {m.content || (m.status === 'streaming' ? 'Thinking…' : '')}
-                </Text>
+                {m.role === 'assistant' && m.content ? (
+                  <Markdown text={m.content} />
+                ) : (
+                  <Text selectable style={{ color: colors.text, fontFamily: fonts.sans, fontSize: 15, lineHeight: 21 }}>
+                    {m.content || (m.status === 'streaming' ? 'Mira is thinking…' : '')}
+                  </Text>
+                )}
               </View>
               {m.role === 'assistant' && (m.status === 'error' || m.status === 'cancelled') ? (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Body style={{ color: m.status === 'error' ? colors.accentText : colors.muted, fontSize: 12 }}>{m.status === 'cancelled' ? 'Stopped.' : (m.errorText ?? 'Friday could not answer.')}</Body>
+                  <Body style={{ color: m.status === 'error' ? colors.accentText : colors.muted, fontSize: 12 }}>{m.status === 'cancelled' ? 'Stopped.' : (m.errorText ?? 'Mira could not answer.')}</Body>
                   <Button
                     variant="ghost"
                     title="Retry"
@@ -207,10 +250,16 @@ export default function ChatScreen() {
                 </View>
               ) : null}
               {m.role === 'assistant' && m.status === 'complete' && m.content ? (
-                <Pressable accessibilityRole="button" accessibilityLabel="Copy reply" onPress={() => void Clipboard.setStringAsync(m.content)} style={{ flexDirection: 'row', gap: 4, alignItems: 'center', minHeight: 36 }}>
-                  <Copy size={13} color={colors.muted} />
-                  <Body muted style={{ fontSize: 12 }}>Copy</Body>
-                </Pressable>
+                <View style={{ flexDirection: 'row', gap: 12 }}>
+                  <Pressable accessibilityRole="button" accessibilityLabel="Copy reply" onPress={() => void Clipboard.setStringAsync(m.content)} style={{ flexDirection: 'row', gap: 4, alignItems: 'center', minHeight: 36 }}>
+                    <Copy size={13} color={colors.muted} />
+                    <Body muted style={{ fontSize: 12 }}>Copy</Body>
+                  </Pressable>
+                  <Pressable accessibilityRole="button" accessibilityLabel={speakingId === m.id ? 'Stop reading' : 'Read aloud'} onPress={() => readAloud(m)} style={{ flexDirection: 'row', gap: 4, alignItems: 'center', minHeight: 36 }}>
+                    <Volume2 size={13} color={colors.muted} />
+                    <Body muted style={{ fontSize: 12 }}>{speakingId === m.id ? 'Stop' : 'Read aloud'}</Body>
+                  </Pressable>
+                </View>
               ) : null}
               {m.role === 'assistant' && m.proposals?.length ? <View style={{ width: '100%' }}>{m.proposals.map((p, i) => <ProposalBlock key={i} p={p} />)}</View> : null}
             </View>
@@ -232,7 +281,7 @@ export default function ChatScreen() {
           {voice.state === 'unavailable' ? <Body muted style={{ fontSize: 12 }}>Voice input needs a development or App Store build (not Expo Go).</Body> : null}
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8 }}>
             <TextInput
-              accessibilityLabel="Message Friday"
+              accessibilityLabel="Message Mira"
               value={input}
               onChangeText={setInput}
               placeholder="Type a message…"

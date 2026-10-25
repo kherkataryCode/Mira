@@ -32,7 +32,7 @@ export default function RemindersScreen() {
       const push = await registerForServerPush();
       setStatus(push.ok ? 'Notifications on. This device is registered for server push.' : `Notifications on for this device. Server push: ${push.reason}`);
     } else {
-      setStatus('Notifications are off. You can enable them in iOS Settings → Friday → Notifications.');
+      setStatus('Notifications are off. You can enable them in iOS Settings → Mira → Notifications.');
     }
   };
 
@@ -53,9 +53,9 @@ export default function RemindersScreen() {
         <Card>
           <Title size="md">Get reminder alerts</Title>
           <Body muted>
-            Friday can alert you on this iPhone when a reminder is due. iOS asks once; you can change it later in Settings. Without permission, reminders still appear in the app.
+            Mira can alert you on this iPhone when a reminder is due. iOS asks once; you can change it later in Settings. Without permission, reminders still appear in the app.
           </Body>
-          <Button variant="primary" title={perm === 'denied' ? 'Open iOS Settings to enable' : 'Allow notifications'} onPress={perm === 'denied' ? () => Alert.alert('Notifications are off', 'Open the Settings app → Friday → Notifications to turn them on.') : enable} />
+          <Button variant="primary" title={perm === 'denied' ? 'Open iOS Settings to enable' : 'Allow notifications'} onPress={perm === 'denied' ? () => Alert.alert('Notifications are off', 'Open the Settings app → Mira → Notifications to turn them on.') : enable} />
         </Card>
       ) : null}
       {status ? <Body muted>{status}</Body> : null}

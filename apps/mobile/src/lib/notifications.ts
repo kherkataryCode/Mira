@@ -65,7 +65,7 @@ export async function syncLocalReminders(reminders: Reminder[]): Promise<number>
   for (const r of upcoming) {
     await Notifications.scheduleNotificationAsync({
       identifier: `${LOCAL_PREFIX}${r.id}`,
-      content: { title: r.title, body: 'Reminder from Friday', data: { reminderId: r.id } },
+      content: { title: r.title, body: 'Reminder from Mira', data: { reminderId: r.id } },
       trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(r.nextFireAt!) },
     });
   }

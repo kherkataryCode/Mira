@@ -1,14 +1,16 @@
 'use client';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ArrowDown, ArrowUp, Download, Monitor, Smartphone } from 'lucide-react';
+import { LEARNING_TOPICS, type LearningTopicId } from '@friday/shared';
 import type { Preferences } from '@/lib/types';
+import { englishVoices, pickMiraVoice, speak } from '@/components/useSpeech';
 import { api, errorMessage } from '@/lib/api';
 import { useAction, useResource } from '@/lib/hooks';
 import { relativeTime } from '@/lib/format';
 import { Badge, Button, Card, Chip, ErrorNote, Field, IconButton, Loading, PageHeader, inputClass } from '@/components/ui';
 import { useSession } from '@/components/AppShell';
 
-const TOPICS = ['technology', 'cybersecurity', 'finance', 'communication', 'productivity'];
+
 const PROVIDER_NAMES = { anthropic: 'Anthropic (Claude)', openai: 'OpenAI', moonshot: 'Kimi / Moonshot' } as const;
 
 function Section({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
@@ -39,6 +41,46 @@ function parseCsv(v: string) {
 
 interface SessionRow { id: string; client: 'web' | 'mobile'; userAgent: string | null; lastUsedAt: string; current: boolean }
 interface AiStatus { demo: boolean; providers: { id: string; model: string; circuitOpen: boolean }[] }
+
+function MiraVoice({ draft, onChange }: { draft: Preferences; onChange: (v: Preferences['voice']) => void }) {
+  const voice = draft.voice;
+  const [voices, setVoices] = useState<string[]>([]);
+  const [natural, setNatural] = useState<boolean | null>(null);
+  const [testResult, setTestResult] = useState<string | null>(null);
+  useEffect(() => {
+    const load = () => setVoices(englishVoices().map((v) => v.name));
+    load();
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.addEventListener('voiceschanged', load);
+    api.get<{ natural: boolean }>('/voice/status').then((r) => setNatural(r.natural)).catch(() => setNatural(false));
+    return () => {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.removeEventListener('voiceschanged', load);
+    };
+  }, []);
+  const best = pickMiraVoice(voice.webVoice)?.name;
+  const test = async () => {
+    const used = await speak('Hi, I’m Mira. Here’s your evening security briefing whenever you’re ready.', { natural: voice.naturalVoice, voiceName: voice.webVoice });
+    setTestResult(used === 'natural' ? 'Played with Mira’s natural voice.' : used === 'device' ? `Played with this browser’s voice: ${best ?? 'default'}.` : 'This browser cannot speak.');
+  };
+  return (
+    <Section title="Mira’s voice" description="A warm, natural female voice for spoken replies and briefings.">
+      <Toggle label="Read chat replies aloud automatically" checked={voice.speakResponses} onChange={(v) => onChange({ ...voice, speakResponses: v })} />
+      <Toggle label="Use Mira’s natural voice (server, uses AI budget)" checked={voice.naturalVoice} onChange={(v) => onChange({ ...voice, naturalVoice: v })} />
+      <p className="mb-3 text-xs text-muted">
+        {natural === null ? 'Checking…' : natural ? 'Natural voice is available on this server.' : 'Natural voice is not configured on this server (needs an OpenAI key), so Mira uses the best female voice your device has.'}
+      </p>
+      <Field label="Device voice (fallback)" hint="Leave on Automatic to let Mira pick the most natural female voice available.">
+        <select value={voice.webVoice ?? ''} onChange={(e) => onChange({ ...voice, webVoice: e.target.value || null })} className={inputClass}>
+          <option value="">Automatic{best ? ` (${best})` : ''}</option>
+          {voices.map((v) => <option key={v} value={v}>{v}</option>)}
+        </select>
+      </Field>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <Button onClick={() => void test()}>Test Mira’s voice</Button>
+        {testResult ? <span role="status" className="text-xs text-muted">{testResult}</span> : null}
+      </div>
+    </Section>
+  );
+}
 
 export default function SettingsPage() {
   const { user, prefs, setPrefs } = useSession();
@@ -88,7 +130,8 @@ export default function SettingsPage() {
   };
 
   const schedules: { key: keyof Preferences['schedule'] & keyof Preferences['scheduleEnabled']; label: string }[] = [
-    { key: 'morningBrief', label: 'Morning brief' },
+    { key: 'morningBrief', label: 'Morning briefing in chat (plan + concept of the day)' },
+    { key: 'eveningNews', label: 'Evening cybersecurity news in chat' },
     { key: 'microlearning', label: 'Microlearning nudge' },
     { key: 'afternoonCheckIn', label: 'Afternoon check-in' },
     { key: 'eveningReview', label: 'Evening review' },
@@ -130,7 +173,7 @@ export default function SettingsPage() {
           </div>
         </Section>
 
-        <Section title="Schedule" description="When Friday prepares briefs and nudges. Runs on the background worker.">
+        <Section title="Daily briefings & schedule" description="Mira posts each day’s briefings into that day’s chat thread. You can also ask any time: “give me my daily summary”.">
           <div className="flex flex-col gap-2">
             {schedules.map(({ key, label }) => (
               <div key={key} className="grid grid-cols-[1fr_auto_auto] items-center gap-3">
@@ -173,13 +216,18 @@ export default function SettingsPage() {
         </Section>
 
         <Section title="Learning & news">
-          <p className="eyebrow mb-2">Learning topics</p>
+          <p className="eyebrow mb-1">Learning topics</p>
+          <p className="mb-2 text-xs text-muted">Mira teaches only these topics — in lessons, daily concepts and chat. Pick at least one.</p>
           <div className="mb-4 flex flex-wrap gap-2">
-            {TOPICS.map((t) => (
-              <Chip key={t} active={draft.learningTopics.includes(t)} onClick={() => set('learningTopics', draft.learningTopics.includes(t) ? draft.learningTopics.filter((x) => x !== t) : [...draft.learningTopics, t])}>
-                <span className="capitalize">{t}</span>
-              </Chip>
-            ))}
+            {LEARNING_TOPICS.map((t) => {
+              const on = draft.learningTopics.includes(t.id);
+              const next: LearningTopicId[] = on ? draft.learningTopics.filter((x) => x !== t.id) : [...draft.learningTopics, t.id];
+              return (
+                <Chip key={t.id} active={on} onClick={() => next.length && set('learningTopics', next)}>
+                  {t.label}
+                </Chip>
+              );
+            })}
           </div>
           <div className="flex flex-col gap-3">
             <Field label="Keywords to prioritise" hint="Comma separated, e.g. AI, RBI, ransomware"><input value={csv(draft.news.keywords)} onChange={(e) => set('news', { ...draft.news, keywords: parseCsv(e.target.value) })} className={inputClass} /></Field>
@@ -187,7 +235,7 @@ export default function SettingsPage() {
           </div>
         </Section>
 
-        <Section title="AI providers & budget" description="Keys live only on the server. Friday tries providers in this order and falls back only for outages or rate limits.">
+        <Section title="AI providers & budget" description="Keys live only on the server. Mira tries providers in this order and falls back only for outages or rate limits.">
           {aiStatus.data ? (
             <p className="mb-3 text-sm">
               {aiStatus.data.demo ? <Badge tone="demo">Demo mode — no provider connected</Badge> : `Connected: ${aiStatus.data.providers.map((p) => `${p.id} (${p.model})${p.circuitOpen ? ' — paused after errors' : ''}`).join(', ')}`}
@@ -227,8 +275,9 @@ export default function SettingsPage() {
             ))}
           </div>
           <Toggle label="Let AI write the brief headline (uses budget)" checked={draft.ai.briefUsesAi} onChange={(v) => set('ai', { ...draft.ai, briefUsesAi: v })} />
-          <Toggle label="Read chat replies aloud" checked={draft.voice.speakResponses} onChange={(v) => set('voice', { speakResponses: v })} />
         </Section>
+
+        <MiraVoice draft={draft} onChange={(voice) => set('voice', voice)} />
       </div>
 
       <div className="sticky bottom-20 z-20 mt-4 flex items-center gap-3 rounded-2xl border border-line bg-raised/95 p-3 backdrop-blur lg:bottom-4">
@@ -272,7 +321,7 @@ export default function SettingsPage() {
           )}
         </Section>
 
-        <Section title="Your data" description="Download everything Friday stores about you as JSON.">
+        <Section title="Your data" description="Download everything Mira stores about you as JSON.">
           <a href="/api/account/export" className="inline-flex min-h-11 items-center gap-2 rounded-full border border-line bg-raised px-4 text-sm font-semibold" download>
             <Download className="size-4" aria-hidden /> Export my data
           </a>

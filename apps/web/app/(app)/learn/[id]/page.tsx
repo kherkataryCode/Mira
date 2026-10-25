@@ -72,14 +72,47 @@ export default function LessonPage() {
         <h2 className="display display-md mb-2">The idea</h2>
         <p className="leading-relaxed">{lesson.explanation}</p>
       </section>
+      {lesson.steps?.length ? (
+        <section className="mt-6">
+          <h2 className="display display-md mb-2">How it works</h2>
+          <ol className="flex list-decimal flex-col gap-1 pl-5 marker:text-muted">{lesson.steps.map((st, i) => <li key={i}>{st}</li>)}</ol>
+        </section>
+      ) : null}
+      {lesson.diagram ? (
+        <section className="mt-6">
+          <h2 className="display display-md mb-2">Architecture view</h2>
+          <pre className="max-w-full overflow-x-auto rounded-2xl border border-line bg-surface p-4 font-mono text-[0.8rem] leading-snug scrollbar-thin">{lesson.diagram}</pre>
+        </section>
+      ) : null}
       <section className="mt-6 rounded-3xl bg-panel p-5 text-on-panel">
-        <h2 className="eyebrow !text-on-panel/70">Example</h2>
+        <h2 className="eyebrow !text-on-panel/70">Real-world example</h2>
         <p className="mt-2 leading-relaxed">{lesson.example}</p>
       </section>
       <section className="mt-6 border-l-4 border-accent pl-4">
         <h2 className="eyebrow">Key takeaway</h2>
         <p className="display display-md mt-1">{lesson.takeaway}</p>
       </section>
+
+      {lesson.insight ? (
+        <section className="mt-6 rounded-3xl border border-line bg-surface p-5">
+          <h2 className="eyebrow">Defensive tip</h2>
+          <p className="display display-md mt-1">{lesson.insight.title}</p>
+          <p className="mt-2">{lesson.insight.body}</p>
+          <ul className="mt-2 flex list-disc flex-col gap-1 pl-5 marker:text-muted">{lesson.insight.bullets.map((b, i) => <li key={i}>{b}</li>)}</ul>
+        </section>
+      ) : null}
+      {lesson.question ? (
+        <section className="mt-6">
+          <h2 className="display display-md mb-2">Logical question</h2>
+          <p className="leading-relaxed">{lesson.question}</p>
+        </section>
+      ) : null}
+      {lesson.learnMore ? (
+        <p className="mt-6 text-sm">
+          Learn more: <a href={lesson.learnMore.url} target="_blank" rel="noopener noreferrer" className="font-semibold text-accent-text underline underline-offset-2">{lesson.learnMore.label}</a>
+          {lesson.origin === 'ai' ? <span className="ml-2 text-muted">· AI-written lesson</span> : null}
+        </p>
+      ) : null}
 
       {lesson.quiz?.length ? (
         <Card className="mt-8">

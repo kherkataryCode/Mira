@@ -76,7 +76,7 @@ export async function safeFetchText(
   for (let hop = 0; hop < 4; hop++) {
     const url = await assertPublicHttpsUrl(current);
     const headers: Record<string, string> = {
-      'user-agent': 'FridayAssistant/0.1 (+personal news reader; respects robots and rate limits)',
+      'user-agent': 'MiraAssistant/0.1 (+personal news reader; respects robots and rate limits)',
       accept: 'application/rss+xml, application/atom+xml, application/xml;q=0.9, text/xml;q=0.8',
     };
     if (opts.etag) headers['if-none-match'] = opts.etag;

@@ -52,6 +52,13 @@ const envSchema = z
     AI_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(5).default(2),
     AI_GLOBAL_MONTHLY_BUDGET_USD: z.coerce.number().min(0).default(20),
 
+    /** Mira's natural voice (server text-to-speech via OpenAI). Needs OPENAI_API_KEY. */
+    MIRA_VOICE_ENABLED: bool(true),
+    OPENAI_TTS_MODEL: z.string().default('gpt-4o-mini-tts'),
+    OPENAI_TTS_VOICE: z.string().default('nova'),
+    /** Estimated USD per million characters, for budgets. */
+    OPENAI_TTS_USD_PER_MCHAR: z.coerce.number().min(0).default(0),
+
     OPENCLAW_ENABLED: bool(false),
     OPENCLAW_URL: optionalStr,
     OPENCLAW_TOKEN: optionalStr,

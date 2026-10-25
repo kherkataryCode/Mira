@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { speakableText } from '@friday/shared';
 
 /* Minimal typings for the Web Speech API (not in lib.dom for all browsers). */
 interface SpeechRecognitionLike {
@@ -93,15 +94,86 @@ export function useSpeechInput(onFinal: (text: string) => void) {
   return { state, interim, errorMsg, start, stop, cancel };
 }
 
-/** Speaks text if the browser supports speech synthesis; silently no-ops otherwise. */
-export function speak(text: string) {
+/* ---------------------------------------------------------------- */
+/* Mira's voice                                                      */
+/* ---------------------------------------------------------------- */
+
+/** Natural-sounding female voices, best first, across Edge, Chrome, Safari and Windows. */
+const FEMALE_VOICES = [
+  'Microsoft Aria Online (Natural)', 'Microsoft Jenny Online (Natural)', 'Microsoft Sonia Online (Natural)', 'Microsoft Neerja Online (Natural)',
+  'Microsoft Ava Online (Natural)', 'Microsoft Emma Online (Natural)', 'Google UK English Female', 'Google US English',
+  'Ava', 'Samantha', 'Allison', 'Susan', 'Zoe', 'Serena', 'Karen', 'Moira', 'Tessa', 'Fiona', 'Veena', 'Isha', 'Victoria', 'Microsoft Zira',
+];
+
+export function englishVoices(): SpeechSynthesisVoice[] {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return [];
+  return window.speechSynthesis.getVoices().filter((v) => v.lang.toLowerCase().startsWith('en'));
+}
+
+/** The chosen voice, else the most natural known female English voice available. */
+export function pickMiraVoice(preferred: string | null | undefined): SpeechSynthesisVoice | null {
+  const voices = englishVoices();
+  if (preferred) {
+    const exact = voices.find((v) => v.name === preferred);
+    if (exact) return exact;
+  }
+  const score = (v: SpeechSynthesisVoice) => {
+    const i = FEMALE_VOICES.findIndex((n) => v.name.startsWith(n));
+    const natural = /natural|premium|enhanced|neural/i.test(v.name) ? -100 : 0;
+    return (i < 0 ? 1000 : i) + natural;
+  };
+  const ranked = [...voices].sort((a, b) => score(a) - score(b));
+  return ranked[0] && score(ranked[0]) < 1000 ? ranked[0] : (voices[0] ?? null);
+}
+
+let currentAudio: HTMLAudioElement | null = null;
+
+function speakWithDevice(text: string, voiceName: string | null | undefined): boolean {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) return false;
   window.speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text.replace(/^Demo mode[^\n]*\n\n/, '').slice(0, 1000));
+  const u = new SpeechSynthesisUtterance(speakableText(text, 3000));
+  const v = pickMiraVoice(voiceName);
+  if (v) {
+    u.voice = v;
+    u.lang = v.lang;
+  }
+  u.rate = 1;
+  u.pitch = 1.05;
   window.speechSynthesis.speak(u);
   return true;
 }
 
+/**
+ * Speaks as Mira: the natural server voice when available (a lifelike female voice),
+ * otherwise the best female voice this browser has. Resolves to which one was used.
+ */
+export async function speak(text: string, opts: { natural?: boolean; voiceName?: string | null } = {}): Promise<'natural' | 'device' | 'none'> {
+  stopSpeaking();
+  if (opts.natural !== false) {
+    try {
+      const res = await fetch('/api/voice/speak', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-friday-csrf': '1' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ text: text.slice(0, 20000) }),
+      });
+      if (res.ok) {
+        const url = URL.createObjectURL(await res.blob());
+        const audio = new Audio(url);
+        currentAudio = audio;
+        audio.addEventListener('ended', () => URL.revokeObjectURL(url), { once: true });
+        await audio.play();
+        return 'natural';
+      }
+    } catch {
+      /* fall back to the device voice */
+    }
+  }
+  return speakWithDevice(text, opts.voiceName) ? 'device' : 'none';
+}
+
 export function stopSpeaking() {
+  currentAudio?.pause();
+  currentAudio = null;
   if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel();
 }

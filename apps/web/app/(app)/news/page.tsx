@@ -27,12 +27,13 @@ interface SourcesResponse {
 }
 
 const FILTERS = [
-  { id: '', label: 'All' },
+  { id: '', label: 'Cybersecurity' },
   { id: 'importance=breaking', label: 'Breaking' },
   { id: 'importance=important', label: 'Important' },
   { id: 'importance=relevant', label: 'Relevant' },
   { id: 'importance=background', label: 'Background' },
   { id: 'saved=true', label: 'Saved' },
+  { id: 'scope=all', label: 'Everything fetched' },
 ];
 
 const IMPORTANCE_TONE = { breaking: 'accent', important: 'demo', relevant: 'positive', background: 'neutral' } as const;
@@ -53,6 +54,7 @@ function NewsCard({ item, onChange }: { item: NewsItem; onChange: () => void }) 
     <li className="flex flex-col gap-2 border-b border-line/70 py-4 last:border-0">
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
         <Badge tone={IMPORTANCE_TONE[item.importance]}>{item.importance}</Badge>
+        {item.exploitation === 'exploited' ? <Badge tone="accent">Exploited in the wild</Badge> : item.exploitation === 'proof-of-concept' ? <Badge tone="demo">Public PoC</Badge> : null}
         {item.isDemo ? <Badge tone="demo">Demo sample — not real news</Badge> : null}
         <span>{item.sourceName}</span>
         <span aria-hidden>·</span>
@@ -104,9 +106,9 @@ function SourcesPanel({ onChanged }: { onChanged: () => void }) {
   };
 
   return (
-    <Card>
+    <Card className="min-w-0">
       <h2 className="mb-1 text-base font-semibold">Your sources</h2>
-      <p className="mb-3 text-xs text-muted">Friday reads the public RSS/Atom feeds you choose, on your schedule, and links back to the original articles.</p>
+      <p className="mb-3 text-xs text-muted">Mira reads the public RSS/Atom feeds you choose, on your schedule, and links back to the original articles.</p>
       {loading && !data ? <Loading /> : null}
       {error ? <ErrorNote message={error} onRetry={reload} /> : null}
       <ul className="flex flex-col gap-2">
@@ -164,11 +166,11 @@ export default function NewsPage() {
     <div>
       <PageHeader
         title="News"
-        subtitle="Summaries from sources you choose — always linked to the original."
+        subtitle="Cybersecurity news from the sources you follow — always linked to the original."
         actions={<Button onClick={() => void refresh.run()} pending={refresh.pending}><RefreshCw className="size-4" aria-hidden /> Check now</Button>}
       />
-      <div className="grid gap-4 lg:grid-cols-[1fr_22rem]">
-        <div>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="min-w-0">
           <div className="mb-3 flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
             {FILTERS.map((f) => <Chip key={f.label} active={filter === f.id} onClick={() => setFilter(f.id)}>{f.label}</Chip>)}
           </div>
@@ -186,7 +188,7 @@ export default function NewsPage() {
           {data && data.items.length === 0 ? (
             <Empty
               title={data.status.sources === 0 ? 'Choose your sources' : 'No stories here yet'}
-              body={data.status.sources === 0 ? 'Add a feed or pick a suggestion. Friday never invents news.' : 'Friday checks your sources at your scheduled times, or tap “Check now”.'}
+              body={data.status.sources === 0 ? 'Add a feed or pick a suggestion. Mira never invents news.' : 'Mira checks your sources at your scheduled times, or tap “Check now”.'}
             />
           ) : null}
           {data && data.items.length > 0 ? (

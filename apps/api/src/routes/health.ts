@@ -3,7 +3,7 @@ import { and, desc, eq, gte, sql } from 'drizzle-orm';
 import { aiUsage, jobRuns } from '../db/schema.js';
 import { pendingPushCount } from '../services/reminders.js';
 
-export const WORKER_JOBS = ['heartbeat', 'reminders.dispatch', 'push.send', 'news.collect', 'briefs.generate', 'cleanup'] as const;
+export const WORKER_JOBS = ['heartbeat', 'reminders.dispatch', 'push.send', 'news.collect', 'briefs.generate', 'briefings.chat', 'cleanup'] as const;
 
 export async function healthRoutes(app: FastifyInstance): Promise<void> {
   app.get('/health/live', { logLevel: 'warn', config: { rateLimit: false } }, async () => ({ status: 'ok' }));

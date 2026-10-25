@@ -4,23 +4,23 @@ import type { ExpoConfig } from 'expo/config';
  * Values that differ per owner come from environment variables at build time:
  *   IOS_BUNDLE_ID       — your reverse-DNS bundle id (must match your Apple Developer App ID)
  *   EAS_PROJECT_ID      — from `eas init`; required for Expo push tokens
- *   EXPO_PUBLIC_API_URL — public HTTPS URL of the Friday API (not a secret)
+ *   EXPO_PUBLIC_API_URL — public HTTPS URL of the Mira API (not a secret)
  */
 const config: ExpoConfig = {
-  name: 'Friday',
-  slug: 'friday-assistant',
-  scheme: 'friday',
+  name: 'Mira',
+  slug: 'mira-assistant',
+  scheme: 'mira',
   version: '0.1.0',
   orientation: 'default',
   userInterfaceStyle: 'dark',
   backgroundColor: '#060505',
   icon: './assets/icon.png',
   ios: {
-    bundleIdentifier: process.env.IOS_BUNDLE_ID ?? 'com.example.friday',
+    bundleIdentifier: process.env.IOS_BUNDLE_ID ?? 'com.example.mira',
     supportsTablet: true,
     infoPlist: {
-      NSMicrophoneUsageDescription: 'Friday uses the microphone only while you hold or tap the mic button to dictate a message.',
-      NSSpeechRecognitionUsageDescription: 'Friday converts your voice to text so you can review it before sending.',
+      NSMicrophoneUsageDescription: 'Mira uses the microphone only while you hold or tap the mic button to dictate a message.',
+      NSSpeechRecognitionUsageDescription: 'Mira converts your voice to text so you can review it before sending.',
       ITSAppUsesNonExemptEncryption: false,
     },
   },
@@ -32,8 +32,8 @@ const config: ExpoConfig = {
     [
       'expo-speech-recognition',
       {
-        microphonePermission: 'Friday uses the microphone only while you tap the mic button to dictate a message.',
-        speechRecognitionPermission: 'Friday converts your voice to text so you can review it before sending.',
+        microphonePermission: 'Mira uses the microphone only while you tap the mic button to dictate a message.',
+        speechRecognitionPermission: 'Mira converts your voice to text so you can review it before sending.',
       },
     ],
     ['expo-splash-screen', { backgroundColor: '#060505', image: './assets/icon.png', imageWidth: 120 }],

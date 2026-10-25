@@ -47,11 +47,13 @@ describe('feed parsing', () => {
 });
 
 describe('news API', () => {
-  it('shows an empty, non-stale state with no sources and lists suggestions', async () => {
+  it('starts every user with the default cybersecurity feeds, honestly marked as not yet fetched', async () => {
     const r = (await u.call({ method: 'GET', url: '/news' })).json();
     expect(r.items).toHaveLength(0);
-    expect(r.status.stale).toBe(false);
+    expect(r.status.sources).toBe(5);
+    expect(r.status.stale).toBe(true);
     const s = (await u.call({ method: 'GET', url: '/news/sources' })).json();
+    expect(s.sources.map((x: { name: string }) => x.name)).toContain('CISA — ICS Advisories');
     expect(s.suggestions.length).toBeGreaterThan(0);
   });
 });
@@ -59,7 +61,9 @@ describe('news API', () => {
 describe('learning', () => {
   it('hides quiz answers until submission, then schedules review', async () => {
     const list = (await u.call({ method: 'GET', url: '/learn/lessons' })).json();
-    expect(list.lessons.length).toBeGreaterThanOrEqual(10);
+    // Only the user's selected topics (default: cybersecurity + OT security).
+    expect(list.lessons.length).toBeGreaterThanOrEqual(8);
+    expect(new Set(list.lessons.map((l: { topic: string }) => l.topic))).toEqual(new Set(['cybersecurity', 'ot-security']));
     const id = list.featured.id;
     const detail = (await u.call({ method: 'GET', url: `/learn/lessons/${id}` })).json().lesson;
     expect(JSON.stringify(detail.quiz)).not.toMatch(/"answer"|"why"/);

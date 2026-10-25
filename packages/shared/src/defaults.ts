@@ -13,6 +13,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
     microlearning: '12:30',
     afternoonCheckIn: '13:00',
     eveningReview: '21:00',
+    eveningNews: '18:00',
   },
   scheduleEnabled: {
     morningBrief: true,
@@ -20,6 +21,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
     microlearning: true,
     afternoonCheckIn: false,
     eveningReview: false,
+    eveningNews: true,
   },
   briefSections: ['tasks', 'reminders', 'news', 'learning'],
   notifications: {
@@ -28,10 +30,10 @@ export const DEFAULT_PREFERENCES: Preferences = {
     quietHoursStart: null,
     quietHoursEnd: null,
   },
-  learningTopics: ['technology', 'cybersecurity', 'finance', 'communication'],
+  learningTopics: ['cybersecurity', 'ot-security'],
   news: {
-    categories: ['technology', 'business'],
-    keywords: [],
+    categories: ['cybersecurity'],
+    keywords: ['critical', 'exploited', 'zero-day', 'ransomware', 'ICS', 'SCADA', 'PLC', 'OT'],
     mutedKeywords: [],
   },
   ai: {
@@ -42,6 +44,9 @@ export const DEFAULT_PREFERENCES: Preferences = {
   },
   voice: {
     speakResponses: false,
+    naturalVoice: true,
+    webVoice: null,
+    iosVoice: null,
   },
   dashboard: {
     order: ['brief', 'tasks', 'reminders', 'learning', 'news', 'quickActions'],
@@ -54,6 +59,8 @@ export const LIMITS = {
   chatMessageMaxChars: 4000,
   noteMaxChars: 20000,
   maxOutputTokens: 800,
+  /** Output budget for a generated daily briefing section. */
+  briefingMaxOutputTokens: 2000,
   pageSizeMax: 100,
   conversationRetentionDays: 180,
   deliveryRetentionDays: 90,

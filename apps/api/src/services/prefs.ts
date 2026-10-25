@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { DEFAULT_PREFERENCES, preferencesSchema, type Preferences } from '@friday/shared';
+import { DEFAULT_PREFERENCES, learningTopicIds, preferencesSchema, type Preferences } from '@friday/shared';
 import type { Db } from '../db/client.js';
 import { userPreferences } from '../db/schema.js';
 
@@ -7,6 +7,9 @@ import { userPreferences } from '../db/schema.js';
 export function mergePreferences(stored: Partial<Preferences> | null | undefined): Preferences {
   const d = DEFAULT_PREFERENCES;
   const s = stored ?? {};
+  // Older settings may name topics Mira no longer teaches; keep only supported ones.
+  const known = new Set<string>(learningTopicIds);
+  const topics = (s.learningTopics ?? []).filter((t) => known.has(t));
   const merged: Preferences = {
     ...d,
     ...s,
@@ -16,6 +19,7 @@ export function mergePreferences(stored: Partial<Preferences> | null | undefined
     news: { ...d.news, ...s.news },
     ai: { ...d.ai, ...s.ai },
     voice: { ...d.voice, ...s.voice },
+    learningTopics: topics.length ? topics : d.learningTopics,
     dashboard: { ...d.dashboard, ...s.dashboard },
   };
   const checked = preferencesSchema.safeParse(merged);

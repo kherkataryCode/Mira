@@ -8,6 +8,13 @@
       "when": 1792845177136,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792949644646,
+      "tag": "0001_mira_briefings",
+      "breakpoints": true
     }
   ]
 }

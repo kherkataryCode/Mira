@@ -17,7 +17,7 @@ async function main() {
   process.on('SIGINT', () => void shutdown('SIGINT'));
 
   await app.listen({ host: config.HOST, port: config.PORT });
-  app.log.info({ demo: app.ai.usingDemo }, 'Friday API ready');
+  app.log.info({ demo: app.ai.usingDemo }, 'Mira API ready');
 }
 
 main().catch((err: unknown) => {

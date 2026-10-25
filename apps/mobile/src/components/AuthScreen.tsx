@@ -35,7 +35,7 @@ export function AuthScreen({ mode }: { mode: 'login' | 'register' }) {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={{ padding: 20, gap: 16, maxWidth: 520, width: '100%', alignSelf: 'center' }} keyboardShouldPersistTaps="handled">
           <View style={{ borderRadius: 28, overflow: 'hidden' }}><Art seed={3} height={150} /></View>
-          <Title size="xl">{mode === 'login' ? 'Welcome back' : 'Meet Friday'}</Title>
+          <Title size="xl">{mode === 'login' ? 'Welcome back' : 'Meet Mira'}</Title>
           <Body muted>Plan. Learn. Stay informed. Be productive.</Body>
           {mode === 'register' ? <Input label="Your name" value={name} onChangeText={setName} autoComplete="given-name" textContentType="givenName" /> : null}
           <Input label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" textContentType="emailAddress" />

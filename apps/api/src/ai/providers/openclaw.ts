@@ -7,8 +7,8 @@ import { AiError, USER_MESSAGES, classifyStatus, type ProviderAdapter, type Stre
  * Contract (documented in docs/OPENCLAW.md): POST {url} with a bearer token and
  * {system, messages, max_tokens}; it must return {text: string}. OpenClaw is used
  * for text generation only — it is given NO tools, no shell/filesystem/network
- * capabilities from Friday, and its output is treated as untrusted text. Any action it
- * suggests still goes through Friday's deterministic proposal + user confirmation flow.
+ * capabilities from Mira, and its output is treated as untrusted text. Any action it
+ * suggests still goes through Mira's deterministic proposal + user confirmation flow.
  * Fails closed: non-HTTPS or private-network endpoints are rejected.
  */
 export function createOpenClawAdapter(opts: { url: string; token: string; timeoutMs: number }): ProviderAdapter {

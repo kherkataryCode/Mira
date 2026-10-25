@@ -6,6 +6,7 @@ import {
   dispatchDueReminders,
   generateBrief,
   mergePreferences,
+  postBriefing,
   schema,
   sendPendingPushes,
   type AiGateway,
@@ -97,7 +98,8 @@ export async function runBriefs(db: Db, ai: AiGateway | null, now = new Date()) 
       const key = `${u.id}:${date}:${slot.kind}`;
       const res = await runOnce(db, 'brief.user', key, async () => {
         const brief = await generateBrief(db, ai, u.id, u.prefs, slot.kind, now);
-        await notify(db, u.id, 'brief', key, slot.label, brief.content.headline, u.prefs.notifications.push);
+        // The morning notification comes from the chat briefing (runChatBriefings) instead.
+        if (slot.kind !== 'morning') await notify(db, u.id, 'brief', key, slot.label, brief.content.headline, u.prefs.notifications.push);
         return { briefId: brief.id };
       }).catch(() => ({ status: 'failed' as const }));
       if (res.status === 'succeeded') generated++;
@@ -117,6 +119,30 @@ export async function runBriefs(db: Db, ai: AiGateway | null, now = new Date()) 
     }
   }
   return { generated };
+}
+
+/**
+ * Posts Mira's briefings into each user's daily chat thread:
+ * morning (plan + concept of the day) and evening (cybersecurity news, fetched fresh first).
+ */
+export async function runChatBriefings(db: Db, ai: AiGateway | null, now = new Date()) {
+  let posted = 0;
+  for await (const u of usersWithPrefs(db)) {
+    const date = localDate(now, u.prefs.timezone);
+    const slots: { slot: 'morning' | 'evening'; on: boolean; at: string }[] = [
+      { slot: 'morning', on: u.prefs.scheduleEnabled.morningBrief, at: u.prefs.schedule.morningBrief },
+      { slot: 'evening', on: u.prefs.scheduleEnabled.eveningNews, at: u.prefs.schedule.eveningNews },
+    ];
+    for (const s of slots) {
+      if (!s.on || !slotIsDue(now, u.prefs.timezone, s.at)) continue;
+      const res = await runOnce(db, 'briefing.chat', `${u.id}:${date}:${s.slot}`, async () => {
+        const p = await postBriefing(db, ai, u.id, s.slot, { now, collectNews: true, notify: true });
+        return { messageId: p.messageId };
+      }).catch(() => ({ status: 'failed' as const }));
+      if (res.status === 'succeeded') posted++;
+    }
+  }
+  return { posted };
 }
 
 export async function runNewsCollection(db: Db, now = new Date()) {

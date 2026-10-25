@@ -1,9 +1,9 @@
 import { PgBoss } from 'pg-boss';
 import { createDb, createGateway, loadConfig } from '@friday/api/lib';
-import { dispatchDueReminders, runBriefs, runCleanup, runNewsCollection, runOnce, sendPendingPushes } from './jobs.js';
+import { dispatchDueReminders, runBriefs, runChatBriefings, runCleanup, runNewsCollection, runOnce, sendPendingPushes } from './jobs.js';
 
 /**
- * Friday worker: the authoritative scheduler. Runs as its own process (never inside the
+ * Mira worker: the authoritative scheduler. Runs as its own process (never inside the
  * web/API), uses pg-boss on PostgreSQL for durable cron + retries, and records every run
  * in job_runs for idempotency and the System Health page.
  */
@@ -36,6 +36,7 @@ async function main() {
       handler: async () => ({ ...(await sendPendingPushes(db, { enabled: config.PUSH_ENABLED, accessToken: config.EXPO_ACCESS_TOKEN })) }),
     },
     { name: 'briefs.generate', cron: '*/5 * * * *', key: minuteKey, handler: async () => ({ ...(await runBriefs(db, ai)) }) },
+    { name: 'briefings.chat', cron: '*/5 * * * *', key: minuteKey, handler: async () => ({ ...(await runChatBriefings(db, ai)) }) },
     { name: 'news.collect', cron: '*/15 * * * *', key: minuteKey, handler: async () => ({ ...(await runNewsCollection(db)) }) },
     { name: 'cleanup', cron: '17 3 * * *', key: () => new Date().toISOString().slice(0, 10), handler: async () => ({ ...(await runCleanup(db)) }) },
   ];
@@ -54,7 +55,7 @@ async function main() {
       }
     });
   }
-  log('info', 'Friday worker started', { jobs: jobs.map((j) => j.name), demo: ai.usingDemo });
+  log('info', 'Mira worker started', { jobs: jobs.map((j) => j.name), demo: ai.usingDemo });
 
   const shutdown = async () => {
     log('info', 'worker shutting down');

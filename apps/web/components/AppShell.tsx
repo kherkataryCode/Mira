@@ -159,10 +159,10 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="safe-x grid min-h-dvh place-items-center">
         {bootError ? (
           <div className="w-full max-w-sm">
-            <ErrorNote message={`Friday couldn't load: ${bootError}`} onRetry={() => setAttempt((a) => a + 1)} />
+            <ErrorNote message={`Mira couldn't load: ${bootError}`} onRetry={() => setAttempt((a) => a + 1)} />
           </div>
         ) : (
-          <Loading label="Opening Friday" />
+          <Loading label="Opening Mira" />
         )}
       </div>
     );
@@ -181,7 +181,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-line bg-surface px-3 py-5 lg:flex">
           <Link href="/" className="mb-6 flex items-center gap-2 px-3">
             <LogoMark />
-            <span className="display text-2xl">Friday</span>
+            <span className="display text-2xl">Mira</span>
           </Link>
           <nav aria-label="Primary" className="flex flex-1 flex-col gap-1 overflow-y-auto scrollbar-thin">
             {nav.map(({ href, label, icon: Icon }) => (
@@ -218,7 +218,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <div className="safe-x mx-auto flex h-[var(--topbar-h)] w-full max-w-6xl items-center gap-2">
               <Link href="/" className="flex items-center gap-2 lg:hidden">
                 <LogoMark size={24} />
-                <span className="display text-xl">Friday</span>
+                <span className="display text-xl">Mira</span>
               </Link>
               <div className="flex-1" />
               <Inbox />

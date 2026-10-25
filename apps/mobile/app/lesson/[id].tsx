@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Linking, Pressable, ScrollView, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { CheckCircle2, XCircle } from 'lucide-react-native';
 import type { Lesson } from '@friday/shared';
@@ -60,14 +60,47 @@ export default function LessonScreen() {
       <Button title={saved ? 'Saved' : 'Save lesson'} onPress={toggleSave} style={{ alignSelf: 'flex-start' }} />
       <Title size="md">The idea</Title>
       <Body>{lesson.explanation}</Body>
+      {lesson.steps?.length ? (
+        <>
+          <Title size="md">How it works</Title>
+          {lesson.steps.map((st, i) => <Body key={i}>{i + 1}. {st}</Body>)}
+        </>
+      ) : null}
+      {lesson.diagram ? (
+        <>
+          <Title size="md">Architecture view</Title>
+          <ScrollView horizontal style={{ borderRadius: 14, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface }} contentContainerStyle={{ padding: 12 }}>
+            <Text selectable style={{ color: colors.text, fontFamily: 'Menlo', fontSize: 11.5, lineHeight: 15 }}>{lesson.diagram}</Text>
+          </ScrollView>
+        </>
+      ) : null}
       <View style={{ backgroundColor: colors.panel, borderRadius: 22, padding: 16, gap: 6 }}>
-        <Eyebrow style={{ color: 'rgba(20,17,15,0.7)' }}>Example</Eyebrow>
+        <Eyebrow style={{ color: 'rgba(20,17,15,0.7)' }}>Real-world example</Eyebrow>
         <Body style={{ color: colors.onPanel }}>{lesson.example}</Body>
       </View>
       <View style={{ borderLeftWidth: 4, borderLeftColor: colors.accent, paddingLeft: 12, gap: 4 }}>
         <Eyebrow>Key takeaway</Eyebrow>
         <Title size="md">{lesson.takeaway}</Title>
       </View>
+      {lesson.insight ? (
+        <Card>
+          <Eyebrow>Defensive tip</Eyebrow>
+          <Title size="md">{lesson.insight.title}</Title>
+          <Body>{lesson.insight.body}</Body>
+          {lesson.insight.bullets.map((b, i) => <Body key={i}>• {b}</Body>)}
+        </Card>
+      ) : null}
+      {lesson.question ? (
+        <>
+          <Title size="md">Logical question</Title>
+          <Body>{lesson.question}</Body>
+        </>
+      ) : null}
+      {lesson.learnMore ? (
+        <Text accessibilityRole="link" onPress={() => void Linking.openURL(lesson.learnMore!.url)} style={{ color: colors.accentText, textDecorationLine: 'underline', paddingVertical: 8 }}>
+          Learn more: {lesson.learnMore.label}
+        </Text>
+      ) : null}
       {lesson.quiz?.length ? (
         <Card>
           <Title size="md">Quick check</Title>

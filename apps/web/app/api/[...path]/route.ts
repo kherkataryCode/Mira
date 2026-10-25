@@ -53,7 +53,7 @@ async function forward(req: NextRequest, ctx: { params: Promise<{ path: string[]
     } as RequestInit);
   } catch {
     if (req.signal.aborted) return new Response(null, { status: 499 });
-    return Response.json({ error: 'upstream_unavailable', message: 'Friday is temporarily unreachable. Please try again.' }, { status: 502 });
+    return Response.json({ error: 'upstream_unavailable', message: 'Mira is temporarily unreachable. Please try again.' }, { status: 502 });
   }
 
   const out = new Headers();

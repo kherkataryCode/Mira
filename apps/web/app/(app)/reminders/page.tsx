@@ -150,7 +150,7 @@ export default function RemindersPage() {
             <p className="flex items-center gap-2 text-sm font-semibold"><Info className="size-4" aria-hidden /> How delivery works</p>
             <ul className="mt-2 flex list-disc flex-col gap-1 pl-5 text-xs text-muted">
               <li>The background worker checks for due reminders every minute and records each delivery — reminders don&apos;t depend on an AI model.</li>
-              <li>On the web, delivered reminders appear in the bell inbox. Phone alerts come from the Friday iOS app once notifications are allowed and server push is configured.</li>
+              <li>On the web, delivered reminders appear in the bell inbox. Phone alerts come from the Mira iOS app once notifications are allowed and server push is configured.</li>
               <li>Delivery can be late if the worker or host is asleep (e.g. free hosting tiers). Status above shows what actually happened.</li>
             </ul>
           </Card>

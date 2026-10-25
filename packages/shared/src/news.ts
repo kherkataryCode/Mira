@@ -92,3 +92,60 @@ export function plainExcerpt(html: string, max = 280): string {
     .trim();
   return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
 }
+
+/* ---------- cybersecurity relevance ---------- */
+
+const CYBER_STRONG = [
+  'vulnerability', 'vulnerabilities', 'cve-', 'exploit', 'exploited', 'zero-day', '0-day', 'ransomware', 'malware',
+  'advisory', 'patch', 'security update', 'remote code execution', 'rce', 'privilege escalation', 'authentication bypass',
+  'backdoor', 'botnet', 'phishing', 'breach', 'threat actor', 'apt', 'cisa', 'cert-in', 'ncsc', 'ics', 'scada', 'plc',
+  'operational technology', 'industrial control', 'hmi', 'denial of service', 'data leak', 'spyware', 'supply chain attack',
+];
+const CYBER_WEAK = ['security', 'cyber', 'hacker', 'hacked', 'attack', 'firewall', 'encryption', 'credential', 'patched', 'flaw', 'bug bounty'];
+const OT_TERMS = ['ics', 'scada', 'plc', 'hmi', 'operational technology', 'industrial', 'modbus', 'dnp3', 'iec 62443', 'pipeline', 'substation', 'rtu'];
+
+function countTerms(text: string, terms: string[]): number {
+  return terms.reduce((n, t) => n + (new RegExp(`(^|[^a-z0-9])${t.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&')}`, 'i').test(text) ? 1 : 0), 0);
+}
+
+/**
+ * 0–100 score of how relevant a story is to cybersecurity (and OT when the user follows it).
+ * Deterministic, so filtering never depends on an AI call.
+ */
+export function cyberRelevance(title: string, summary: string, opts: { keywords?: string[]; otFocus?: boolean } = {}): number {
+  const text = `${title} ${summary}`.toLowerCase();
+  const strong = countTerms(text, CYBER_STRONG);
+  const weak = countTerms(text, CYBER_WEAK);
+  const ot = countTerms(text, OT_TERMS);
+  const kw = (opts.keywords ?? []).filter((k) => k && text.includes(k.toLowerCase())).length;
+  const titleBoost = countTerms(title.toLowerCase(), CYBER_STRONG) > 0 ? 15 : 0;
+  const score = strong * 18 + weak * 6 + kw * 6 + titleBoost + (opts.otFocus ? ot * 10 : ot * 4);
+  return Math.max(0, Math.min(100, score));
+}
+
+/** Minimum relevance for a story to appear in a cybersecurity briefing. */
+export const CYBER_RELEVANCE_THRESHOLD = 30;
+
+export type ExploitationStatus = 'exploited' | 'proof-of-concept' | 'not-reported';
+
+/** What the source text itself says about exploitation. Never inferred beyond the text. */
+export function exploitationStatus(text: string): ExploitationStatus {
+  const t = text.toLowerCase();
+  if (/(actively|being|has been|have been|were|was|under active)\s+exploit|exploited in the wild|in-the-wild exploitation|known exploited|added to (the )?kev/.test(t)) return 'exploited';
+  if (/proof[- ]of[- ]concept|\bpoc\b|exploit code (is |has been )?(publicly )?(available|released)|public exploit/.test(t)) return 'proof-of-concept';
+  return 'not-reported';
+}
+
+export const EXPLOITATION_LABEL: Record<ExploitationStatus, string> = {
+  exploited: 'Reported as exploited in the wild (per source)',
+  'proof-of-concept': 'Public proof-of-concept reported (per source)',
+  'not-reported': 'No exploitation reported in the source',
+};
+
+/** Requests for an on-demand daily briefing typed in chat. */
+const BRIEFING_INTENT =
+  /\b(daily|today'?s|morning|evening|my)\s+(summary|briefing|brief|digest|update)\b|^(give me|prepare|create|make|send|show)( me)?( a| the| my| today'?s)?\s+(summary|briefing|brief|digest)\b|^\/?(brief|briefing|summary|digest)$/i;
+
+export function isBriefingRequest(text: string): boolean {
+  return BRIEFING_INTENT.test(text.trim());
+}

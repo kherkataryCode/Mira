@@ -17,7 +17,7 @@ describe('chat', () => {
   let failedId = '';
 
   it('streams a reply and persists both messages', async () => {
-    const res = await u.call({ method: 'POST', url: '/chat/send', payload: { content: 'Hello Friday', clientMessageId: 'chat-test-0001' } });
+    const res = await u.call({ method: 'POST', url: '/chat/send', payload: { content: 'Hello Mira', clientMessageId: 'chat-test-0001' } });
     expect(res.headers['content-type']).toContain('application/x-ndjson');
     const events = ndjson(res.body);
     expect(events[0]!.type).toBe('meta');
@@ -29,7 +29,7 @@ describe('chat', () => {
   });
 
   it('does not store a resent message twice', async () => {
-    const res = await u.call({ method: 'POST', url: '/chat/send', payload: { conversationId, content: 'Hello Friday', clientMessageId: 'chat-test-0001' } });
+    const res = await u.call({ method: 'POST', url: '/chat/send', payload: { conversationId, content: 'Hello Mira', clientMessageId: 'chat-test-0001' } });
     expect(res.statusCode).toBe(409);
   });
 

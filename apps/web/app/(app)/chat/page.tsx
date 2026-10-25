@@ -1,6 +1,8 @@
 'use client';
-import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
-import { ArrowUp, Copy, History, Mic, Plus, RotateCcw, Square, Trash2, Volume2, VolumeX, X } from 'lucide-react';
+import { Suspense, useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { ArrowUp, CalendarDays, Copy, History, Mic, Plus, RotateCcw, Sparkles, Square, Trash2, Volume2, VolumeX, X } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import { Markdown } from '@/components/Markdown';
 import type { ChatMessage, Proposal } from '@/lib/types';
 import { api, errorMessage, streamChat, type ChatEvent } from '@/lib/api';
 import { newClientId, relativeTime } from '@/lib/format';
@@ -13,6 +15,8 @@ interface Conversation {
   id: string;
   title: string;
   updatedAt: string;
+  kind?: 'chat' | 'daily';
+  localDate?: string | null;
 }
 
 type UiMessage = ChatMessage & { demo?: boolean; errorText?: string };
@@ -39,7 +43,7 @@ function ProposalBlock({ proposal }: { proposal: Proposal }) {
   );
 }
 
-export default function ChatPage() {
+function ChatScreen() {
   const { prefs, setPrefs } = useSession();
   const [conversations, setConversations] = useState<Conversation[] | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -86,12 +90,45 @@ export default function ChatPage() {
     }
   }, []);
 
+  const params = useSearchParams();
+  const requested = params.get('c');
+
   useEffect(() => {
-    loadConversations()
-      .then((list) => (list[0] ? openConversation(list[0].id) : undefined))
+    // Open the requested thread, else today's briefing thread, else the latest chat.
+    Promise.all([loadConversations(), api.get<{ conversationId: string | null }>('/briefings/today').catch(() => ({ conversationId: null }))])
+      .then(([list, today]) => {
+        const target = (requested && list.find((c) => c.id === requested)?.id) ?? today.conversationId ?? list[0]?.id;
+        return target ? openConversation(target) : undefined;
+      })
       .catch((e: unknown) => setError(errorMessage(e)));
     return () => abortRef.current?.abort();
-  }, [loadConversations, openConversation]);
+  }, [loadConversations, openConversation, requested]);
+
+  const [preparing, setPreparing] = useState(false);
+  const prepareBriefing = async () => {
+    setPreparing(true);
+    setError(null);
+    try {
+      const r = await api.post<{ conversationId: string }>('/briefings/now', {});
+      await loadConversations();
+      await openConversation(r.conversationId);
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setPreparing(false);
+    }
+  };
+
+  const [speakingId, setSpeakingId] = useState<string | null>(null);
+  const readAloud = async (m: UiMessage) => {
+    if (speakingId === m.id) {
+      stopSpeaking();
+      setSpeakingId(null);
+      return;
+    }
+    setSpeakingId(m.id);
+    await speak(m.content, { natural: prefs?.voice.naturalVoice, voiceName: prefs?.voice.webVoice });
+  };
 
   useEffect(() => {
     const el = listRef.current;
@@ -128,8 +165,9 @@ export default function ChatPage() {
             setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, content: m.content + e.text } : m)));
           } else if (e.type === 'done') {
             const id = currentAssistant;
-            setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, status: 'complete', provider: e.provider, model: e.model, demo: e.demo } : m)));
-            if (speakOn) speak(full);
+            const kind = e.provider === 'mira-briefing' ? ('briefing' as const) : ('chat' as const);
+            setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, status: 'complete', provider: e.provider, model: e.model, demo: e.demo, kind } : m)));
+            if (speakOn) void speak(full, { natural: prefs?.voice.naturalVoice, voiceName: prefs?.voice.webVoice });
           } else if (e.type === 'error') {
             const id = currentAssistant;
             setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, status: e.code === 'cancelled' ? 'cancelled' : 'error', errorCode: e.code, errorText: e.message } : m)));
@@ -222,7 +260,7 @@ export default function ChatPage() {
   };
 
   const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant' && m.status === 'complete');
-  const providerLabel = lastAssistant?.demo || lastAssistant?.provider === 'demo' ? 'Demo mode' : lastAssistant?.provider ? `${lastAssistant.provider} · ${lastAssistant.model}` : null;
+  const providerLabel = lastAssistant?.demo || lastAssistant?.provider === 'demo' ? 'Demo mode' : lastAssistant?.provider === 'mira-briefing' ? null : lastAssistant?.provider ? `${lastAssistant.provider} · ${lastAssistant.model}` : null;
 
   return (
     <div className="flex h-[calc(100dvh-var(--topbar-h)-env(safe-area-inset-top))] flex-col">
@@ -237,6 +275,9 @@ export default function ChatPage() {
         <IconButton label="Conversation history" onClick={() => setShowHistory((s) => !s)} aria-expanded={showHistory}>
           <History className="size-5" aria-hidden />
         </IconButton>
+        <Button variant="panel" className="!min-h-10" onClick={() => void prepareBriefing()} pending={preparing} disabled={Boolean(streaming)} title="Prepare today’s briefing now">
+          <Sparkles className="size-4" aria-hidden /> <span className="hidden sm:inline">Briefing</span>
+        </Button>
         <IconButton label="New chat" onClick={newChat}>
           <Plus className="size-5" aria-hidden />
         </IconButton>
@@ -249,6 +290,7 @@ export default function ChatPage() {
             {conversations?.map((c) => (
               <li key={c.id} className="flex items-center gap-1">
                 <button onClick={() => void openConversation(c.id)} className={`min-h-11 flex-1 truncate rounded-xl px-3 text-left text-sm ${c.id === conversationId ? 'bg-surface font-semibold' : ''}`}>
+                  {c.kind === 'daily' ? <CalendarDays className="mr-1.5 inline size-4 align-[-2px] text-accent-text" aria-label="Daily briefing" /> : null}
                   {c.title} <span className="text-xs text-muted">· {relativeTime(c.updatedAt)}</span>
                 </button>
                 <IconButton label={`Delete conversation ${c.title}`} onClick={() => void deleteConversation(c.id)}>
@@ -264,9 +306,9 @@ export default function ChatPage() {
         {loadingConvo ? <Loading label="Loading conversation" /> : null}
         {!loadingConvo && messages.length === 0 ? (
           <div className="mx-auto mt-6 max-w-md text-center">
-            <p className="display display-lg">How can I help?</p>
+            <p className="display display-lg">Hi, I’m Mira. How can I help?</p>
             <div className="mt-4 flex flex-wrap justify-center gap-2">
-              {['What do I have today?', 'Remind me to call the dentist tomorrow at 5 PM', 'Add a task to review the firewall config on Friday 11am'].map((s) => (
+              {['Give me my daily summary', 'What do I have today?', 'Explain egress filtering for OT networks', 'Remind me to review firewall rules tomorrow at 11 AM'].map((s) => (
                 <button key={s} onClick={() => setInput(s)} className="min-h-11 rounded-full border border-line px-4 text-sm text-muted hover:text-text">
                   {s}
                 </button>
@@ -277,16 +319,17 @@ export default function ChatPage() {
         <ol className="flex flex-col gap-3 pb-4">
           {messages.map((m) => (
             <li key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`flex max-w-[min(42rem,88%)] flex-col gap-2 ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
+              <div className={`flex min-w-0 flex-col gap-2 ${m.kind === 'briefing' ? 'w-full max-w-3xl' : 'max-w-[min(42rem,88%)]'} ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
                 <div
-                  className={`whitespace-pre-wrap break-words rounded-3xl px-4 py-3 text-[0.95rem] leading-relaxed ${
-                    m.role === 'user' ? 'rounded-br-md bg-green/45 text-text' : 'rounded-bl-md border border-line bg-surface'
-                  }`}
+                  className={`min-w-0 max-w-full break-words rounded-3xl px-4 py-3 text-[0.95rem] leading-relaxed ${
+                    m.role === 'user' ? 'whitespace-pre-wrap rounded-br-md bg-green/45 text-text' : 'rounded-bl-md border border-line bg-surface'
+                  } ${m.kind === 'briefing' ? 'w-full sm:px-6 sm:py-5' : ''}`}
                 >
+                  {m.kind === 'briefing' ? <div className="mb-2 flex items-center gap-2"><Badge tone="accent">Mira · Daily briefing</Badge></div> : null}
                   {m.role === 'assistant' && (m.demo || m.provider === 'demo') ? <div className="mb-1"><Badge tone="demo">Demo response</Badge></div> : null}
-                  {m.content}
+                  {m.role === 'assistant' && m.content ? <Markdown text={m.content} /> : m.content}
                   {m.status === 'streaming' && !m.content ? (
-                    <span className="inline-flex gap-1" aria-label="Friday is thinking">
+                    <span className="inline-flex gap-1" aria-label="Mira is thinking">
                       <span className="typing-dot size-1.5 rounded-full bg-muted" />
                       <span className="typing-dot size-1.5 rounded-full bg-muted" />
                       <span className="typing-dot size-1.5 rounded-full bg-muted" />
@@ -297,7 +340,7 @@ export default function ChatPage() {
                 {m.role === 'assistant' && (m.status === 'error' || m.status === 'cancelled') ? (
                   <div className="flex flex-wrap items-center gap-2 text-xs">
                     <span className={m.status === 'error' ? 'text-accent-text' : 'text-muted'}>
-                      {m.status === 'cancelled' ? 'Stopped.' : (m.errorText ?? (m.errorCode === 'interrupted' ? 'This reply was interrupted.' : 'Friday could not answer.'))}
+                      {m.status === 'cancelled' ? 'Stopped.' : (m.errorText ?? (m.errorCode === 'interrupted' ? 'This reply was interrupted.' : 'Mira could not answer.'))}
                     </span>
                     <Button variant="ghost" className="!min-h-9" onClick={() => retry(m)} disabled={Boolean(streaming)}>
                       <RotateCcw className="size-3.5" aria-hidden /> Retry
@@ -305,9 +348,14 @@ export default function ChatPage() {
                   </div>
                 ) : null}
                 {m.role === 'assistant' && m.status === 'complete' && m.content ? (
-                  <button onClick={() => void copy(m)} className="inline-flex min-h-9 items-center gap-1 px-1 text-xs text-muted hover:text-text">
-                    <Copy className="size-3.5" aria-hidden /> {copied === m.id ? 'Copied' : 'Copy'}
-                  </button>
+                  <div className="flex gap-1">
+                    <button onClick={() => void copy(m)} className="inline-flex min-h-9 items-center gap-1 px-1 text-xs text-muted hover:text-text">
+                      <Copy className="size-3.5" aria-hidden /> {copied === m.id ? 'Copied' : 'Copy'}
+                    </button>
+                    <button onClick={() => void readAloud(m)} className="inline-flex min-h-9 items-center gap-1 px-1 text-xs text-muted hover:text-text">
+                      <Volume2 className="size-3.5" aria-hidden /> {speakingId === m.id ? 'Stop' : 'Read aloud'}
+                    </button>
+                  </div>
                 ) : null}
                 {m.role === 'assistant' && m.proposals?.length ? (
                   <div className="w-full min-w-[min(100%,20rem)]">{m.proposals.map((p, i) => <ProposalBlock key={i} proposal={p} />)}</div>
@@ -332,7 +380,7 @@ export default function ChatPage() {
         {voice.errorMsg ? <p role="alert" className="mb-2 text-xs text-accent-text">{voice.errorMsg}</p> : null}
         {viaVoice && input ? <p className="mb-1 text-xs text-muted">Transcribed from voice — edit if needed, then send.</p> : null}
         <div className="flex items-end gap-2">
-          <label htmlFor="composer" className="sr-only">Message Friday</label>
+          <label htmlFor="composer" className="sr-only">Message Mira</label>
           <textarea
             id="composer"
             ref={inputRef}
@@ -367,5 +415,13 @@ export default function ChatPage() {
         {voice.state === 'unsupported' ? <p className="mt-1 text-xs text-muted">Voice input isn&apos;t available in this browser. Typing works everywhere.</p> : null}
       </form>
     </div>
+  );
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense>
+      <ChatScreen />
+    </Suspense>
   );
 }

@@ -1,4 +1,4 @@
-/** Thin client for the Friday API, reached same-origin through the /api rewrite. */
+/** Thin client for the Mira API, reached same-origin through the /api rewrite. */
 
 export class ApiError extends Error {
   constructor(

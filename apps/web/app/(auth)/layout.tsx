@@ -15,7 +15,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <div className="mx-auto w-full max-w-sm">
           <div className="mb-8 flex items-center gap-3">
             <LogoMark size={36} />
-            <span className="display text-4xl">Friday</span>
+            <span className="display text-4xl">Mira</span>
           </div>
           {children}
         </div>

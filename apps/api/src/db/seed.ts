@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, notInArray, sql } from 'drizzle-orm';
 import { DateTime } from 'luxon';
 import { DEFAULT_PREFERENCES, canonicalUrl, titleFingerprint } from '@friday/shared';
 import { createDb, type Db } from './client.js';
@@ -31,9 +31,17 @@ export async function seedLessons(db: Db): Promise<number> {
           takeaway: l.takeaway,
           quiz: l.quiz,
           artSeed: l.artSeed,
+          steps: l.steps,
+          diagram: l.diagram,
+          insight: l.insight,
+          question: l.question,
+          learnMore: l.learnMore,
+          origin: 'curated' as const,
         },
       });
   }
+  // Retire curated lessons that are no longer part of the curriculum (AI lessons are kept).
+  await db.delete(lessons).where(and(eq(lessons.origin, 'curated'), notInArray(lessons.slug, LESSONS.map((l) => l.slug))));
   return LESSONS.length;
 }
 

@@ -181,10 +181,16 @@ export const conversations = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
     title: text('title').notNull(),
+    /** "daily" = Mira's per-day briefing thread. */
+    kind: text('kind', { enum: ['chat', 'daily'] }).notNull().default('chat'),
+    localDate: text('local_date'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [index('conversations_user_idx').on(t.userId, t.updatedAt)],
+  (t) => [
+    index('conversations_user_idx').on(t.userId, t.updatedAt),
+    uniqueIndex('conversations_daily_idx').on(t.userId, t.localDate).where(sql`${t.kind} = 'daily'`),
+  ],
 );
 
 export const messages = pgTable(
@@ -202,6 +208,7 @@ export const messages = pgTable(
     proposals: jsonb('proposals').$type<Proposal[]>(),
     errorCode: text('error_code'),
     viaVoice: boolean('via_voice').notNull().default(false),
+    kind: text('kind', { enum: ['chat', 'briefing'] }).notNull().default('chat'),
     createdAt: createdAt(),
   },
   (t) => [
@@ -211,6 +218,12 @@ export const messages = pgTable(
 );
 
 /* ---------- learning ---------- */
+
+export interface LessonInsight {
+  title: string;
+  body: string;
+  bullets: string[];
+}
 
 export interface QuizQuestion {
   q: string;
@@ -235,9 +248,22 @@ export const lessons = pgTable(
     takeaway: text('takeaway').notNull(),
     quiz: jsonb('quiz').$type<QuizQuestion[]>().notNull(),
     artSeed: integer('art_seed').notNull().default(0),
+    /** "How it works" steps. */
+    steps: jsonb('steps').$type<string[]>().notNull().default([]),
+    /** Plain-text architecture view, shown as a fixed-width diagram. */
+    diagram: text('diagram'),
+    /** Defensive tip shown as the daily insight. */
+    insight: jsonb('insight').$type<LessonInsight>(),
+    /** A scenario question that makes the reader apply the concept. */
+    question: text('question'),
+    /** Curated reference link (never model-generated). */
+    learnMore: jsonb('learn_more').$type<{ label: string; url: string }>(),
+    /** null = shared curriculum; set = AI-generated for one user. */
+    ownerUserId: uuid('owner_user_id').references(() => users.id, { onDelete: 'cascade' }),
+    origin: text('origin', { enum: ['curated', 'ai'] }).notNull().default('curated'),
     createdAt: createdAt(),
   },
-  (t) => [index('lessons_topic_idx').on(t.topic)],
+  (t) => [index('lessons_topic_idx').on(t.topic), index('lessons_owner_idx').on(t.ownerUserId)],
 );
 
 export const lessonProgress = pgTable(
@@ -312,6 +338,13 @@ export const newsItems = pgTable(
     saved: boolean('saved').notNull().default(false),
     hidden: boolean('hidden').notNull().default(false),
     isDemo: boolean('is_demo').notNull().default(false),
+    /** 0–100 cybersecurity relevance (deterministic). */
+    relevance: integer('relevance').notNull().default(0),
+    exploitation: text('exploitation', { enum: ['exploited', 'proof-of-concept', 'not-reported'] }).notNull().default('not-reported'),
+    /** AI rewrite grounded in the feed text, cached so each story is summarised once. */
+    brief: text('brief'),
+    affected: text('affected'),
+    action: text('action'),
   },
   (t) => [
     uniqueIndex('news_items_user_url_idx').on(t.userId, t.canonicalUrl),
@@ -357,6 +390,24 @@ export const briefs = pgTable(
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex('briefs_user_date_kind_idx').on(t.userId, t.localDate, t.kind)],
+);
+
+/* ---------- daily briefings ---------- */
+
+export const briefings = pgTable(
+  'briefings',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    localDate: text('local_date').notNull(),
+    slot: text('slot', { enum: ['morning', 'evening', 'ondemand'] }).notNull(),
+    messageId: uuid('message_id').references(() => messages.id, { onDelete: 'set null' }),
+    lessonId: uuid('lesson_id').references(() => lessons.id, { onDelete: 'set null' }),
+    newsItemIds: jsonb('news_item_ids').$type<string[]>().notNull().default([]),
+    generatedBy: text('generated_by', { enum: ['deterministic', 'ai'] }).notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index('briefings_user_idx').on(t.userId, t.createdAt)],
 );
 
 /* ---------- operations ---------- */

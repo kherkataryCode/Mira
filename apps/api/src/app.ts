@@ -19,6 +19,8 @@ import { noteRoutes } from './routes/notes.js';
 import { homeRoutes } from './routes/home.js';
 import { settingsRoutes } from './routes/settings.js';
 import { healthRoutes } from './routes/health.js';
+import { briefingRoutes } from './routes/briefings.js';
+import { voiceRoutes } from './routes/voice.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -126,5 +128,7 @@ export async function buildApp({ config, db, ai }: AppDeps): Promise<FastifyInst
   await app.register(newsRoutes);
   await app.register(noteRoutes);
   await app.register(settingsRoutes);
+  await app.register(briefingRoutes);
+  await app.register(voiceRoutes);
   return app;
 }

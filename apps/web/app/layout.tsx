@@ -3,7 +3,7 @@ import { headers } from 'next/headers';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: { default: 'Friday', template: '%s · Friday' },
+  title: { default: 'Mira', template: '%s · Mira' },
   description: 'Plan. Learn. Stay informed. Be productive.',
   manifest: '/manifest.webmanifest',
   icons: { icon: '/icon.svg', apple: '/icon.svg' },

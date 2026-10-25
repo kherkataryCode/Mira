@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { DEFAULT_PREFERENCES } from '@friday/shared';
 import { createDb, runMigrations, schema, seedLessons, type DbHandle } from '@friday/api/lib';
-import { runBriefs, runCleanup, runOnce, slotIsDue } from './jobs.js';
+import { runBriefs, runChatBriefings, runCleanup, runOnce, slotIsDue } from './jobs.js';
 
 const URL = process.env.TEST_DATABASE_URL ?? 'postgres://friday:friday@localhost:5432/friday_test';
 let handle: DbHandle;
@@ -61,8 +61,32 @@ describe('briefs job', () => {
     await runBriefs(handle.db, null, now);
     const briefs = await handle.pool.query("select count(*)::int as n from briefs where user_id = $1 and kind = 'morning'", [userId]);
     expect(briefs.rows[0].n).toBe(1);
+    // The morning alert now comes from the chat briefing (see below), not the dashboard brief.
     const notes = await handle.pool.query("select count(*)::int as n from notification_deliveries where user_id = $1 and kind = 'brief'", [userId]);
+    expect(notes.rows[0].n).toBe(0);
+  });
+});
+
+describe('chat briefings job', () => {
+  it('posts the morning briefing into the daily thread once, however often the job runs', async () => {
+    const now = new Date('2026-10-24T08:05:00Z');
+    await runChatBriefings(handle.db, null, now);
+    await runChatBriefings(handle.db, null, now);
+    const { rows } = await handle.pool.query(
+      `select m.content from messages m join conversations c on c.id = m.conversation_id
+       where m.user_id = $1 and c.kind = 'daily' and c.local_date = '2026-10-24' and m.kind = 'briefing'`,
+      [userId],
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].content).toContain('## B. Concept of the Day');
+    const notes = await handle.pool.query("select count(*)::int as n from notification_deliveries where user_id = $1 and occurrence_key = 'briefing:2026-10-24:morning'", [userId]);
     expect(notes.rows[0].n).toBe(1);
+  });
+
+  it('does nothing outside the scheduled windows', async () => {
+    // 22:00 UTC is outside every default window for UTC and Asia/Kolkata users.
+    const res = await runChatBriefings(handle.db, null, new Date('2026-10-24T22:00:00Z'));
+    expect(res.posted).toBe(0);
   });
 });
 
@@ -71,7 +95,7 @@ describe('cleanup', () => {
     await handle.pool.query("insert into conversations (user_id, title, updated_at) values ($1, 'old', now() - interval '400 days'), ($1, 'new', now())", [userId]);
     const res = await runCleanup(handle.db);
     expect(res.conversations).toBeGreaterThanOrEqual(1);
-    const left = await handle.pool.query('select title from conversations where user_id = $1', [userId]);
+    const left = await handle.pool.query("select title from conversations where user_id = $1 and kind = 'chat'", [userId]);
     expect(left.rows.map((r) => r.title)).toEqual(['new']);
   });
 });

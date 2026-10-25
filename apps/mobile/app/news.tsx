@@ -57,7 +57,7 @@ export default function NewsScreen() {
       {data?.status.stale ? <ErrorNote message={`News may be out of date — last update ${data.status.lastSuccessAt ? relativeTime(data.status.lastSuccessAt) : 'never'}.`} /> : null}
       {error ? <ErrorNote message={error} onRetry={reload} /> : null}
       {loading && !data ? <Loading /> : null}
-      {data && data.items.length === 0 ? <Empty title={data.status.sources ? 'No stories yet' : 'Choose your sources'} body="Friday never invents news." /> : null}
+      {data && data.items.length === 0 ? <Empty title={data.status.sources ? 'No stories yet' : 'Choose your sources'} body="Mira never invents news." /> : null}
       {data?.items.map((n) => (
         <Pressable key={n.id} accessibilityRole="link" accessibilityHint="Opens the original article" onPress={() => void Linking.openURL(n.url)}>
           <Card>

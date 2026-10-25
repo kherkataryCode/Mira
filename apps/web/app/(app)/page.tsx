@@ -1,7 +1,8 @@
 'use client';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { ArrowRight, BookOpen, Bell, CheckSquare, ChevronDown, ChevronUp, EyeOff, MessageCircle, Mic, Newspaper, RefreshCw, Settings2 } from 'lucide-react';
+import { ArrowRight, Sparkles, BookOpen, Bell, CheckSquare, ChevronDown, ChevronUp, EyeOff, MessageCircle, Mic, Newspaper, RefreshCw, Settings2 } from 'lucide-react';
 import type { WidgetId } from '@friday/shared';
 import type { Home } from '@/lib/types';
 import { api } from '@/lib/api';
@@ -26,6 +27,11 @@ export default function HomePage() {
   const { data, error, loading, reload } = useResource<Home>('/home');
   const { prefs, setPrefs } = useSession();
   const [customizing, setCustomizing] = useState(false);
+  const router = useRouter();
+  const briefingNow = useAction(async () => {
+    const r = await api.post<{ conversationId: string }>('/briefings/now', {});
+    router.push(`/chat?c=${r.conversationId}`);
+  });
   const regen = useAction(async () => {
     await api.post('/briefs/generate');
     reload();
@@ -79,7 +85,7 @@ export default function HomePage() {
               <RefreshCw className="size-4" aria-hidden /> {data.brief ? 'Refresh brief' : 'Generate brief'}
             </Button>
             <Link href="/chat" className="inline-flex min-h-11 items-center gap-2 rounded-full border border-cream/40 px-4 text-sm font-semibold">
-              Ask Friday <ArrowRight className="size-4" aria-hidden />
+              Ask Mira <ArrowRight className="size-4" aria-hidden />
             </Link>
           </div>
           {regen.error ? <p role="alert" className="text-sm text-cream">{regen.error}</p> : null}
@@ -149,7 +155,7 @@ export default function HomePage() {
             ))}
           </ul>
         ) : (
-          <Empty title="No news yet" body="Add sources you trust and Friday will check them on your schedule." action={<Link href="/news" className="text-sm font-semibold underline">Choose sources</Link>} />
+          <Empty title="No news yet" body="Add sources you trust and Mira will check them on your schedule." action={<Link href="/news" className="text-sm font-semibold underline">Choose sources</Link>} />
         )}
       </Card>
     ),
@@ -178,11 +184,15 @@ export default function HomePage() {
       <header className="compact-landscape mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="display display-xl">{data.greeting}</h1>
+          {briefingNow.error ? <p role="alert" className="text-sm text-accent-text">{briefingNow.error}</p> : null}
           <p className="hide-short mt-1 text-sm text-muted">{dateLabel} · {data.counts.tasksToday} tasks · {data.counts.reminders} reminders</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button variant="panel" onClick={() => void briefingNow.run()} pending={briefingNow.pending}>
+            <Sparkles className="size-4" aria-hidden /> Today’s briefing
+          </Button>
           <Link href="/chat" className="inline-flex min-h-11 items-center gap-2 rounded-full bg-accent px-4 text-sm font-semibold text-on-accent">
-            <Mic className="size-4" aria-hidden /> Talk to Friday
+            <Mic className="size-4" aria-hidden /> Talk to Mira
           </Link>
           <IconButton label="Customize dashboard" onClick={() => setCustomizing((c) => !c)} aria-expanded={customizing}>
             <Settings2 className="size-5" aria-hidden />
