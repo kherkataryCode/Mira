@@ -49,7 +49,7 @@ How it stays relevant and honest:
 9. [Rollback and restore](#9-rollback-and-restore)
 10. [What was verified](#what-was-verified) · [Known limitations](#known-limitations)
 
-More docs: [Architecture](docs/ARCHITECTURE.md) · [Threat model](docs/THREAT_MODEL.md) · [API reference](docs/API.md) · [iOS guide](docs/IOS.md) · [Backup & restore](docs/BACKUP_RESTORE.md) · [OpenClaw](docs/OPENCLAW.md) · [Acceptance checklist](docs/ACCEPTANCE.md) · [Security policy](SECURITY.md)
+More docs: [Architecture](docs/ARCHITECTURE.md) · [Threat model](docs/THREAT_MODEL.md) · [API reference](docs/API.md) · [iOS guide](docs/IOS.md) · [Railway deploy](docs/RAILWAY.md) · [Backup & restore](docs/BACKUP_RESTORE.md) · [OpenClaw](docs/OPENCLAW.md) · [Acceptance checklist](docs/ACCEPTANCE.md) · [Security policy](SECURITY.md)
 
 ---
 
@@ -129,7 +129,7 @@ All configuration is via environment variables, validated at startup (`apps/api/
 | `API_INTERNAL_URL` or `API_INTERNAL_HOSTPORT` | web | `http://localhost:4000` | Where the web server proxies `/api/*` |
 | `MIRA_HTTPS` | web | — | `true` in production: HSTS + `upgrade-insecure-requests` |
 | `EXPO_PUBLIC_API_URL` | mobile | `http://localhost:4000` | **Public** HTTPS API URL baked into the app |
-| `IOS_BUNDLE_ID` / `EAS_PROJECT_ID` | mobile build | `com.example.friday` / — | See [docs/IOS.md](docs/IOS.md) |
+| `IOS_BUNDLE_ID` / `EAS_PROJECT_ID` | mobile build | `com.example.mira` / — | See [docs/IOS.md](docs/IOS.md) |
 
 User-level settings (timezone — default `Asia/Kolkata`, briefing schedule, provider order, budgets, topics, news keywords, voice) live in each user's preferences and are edited in **Settings**.
 
