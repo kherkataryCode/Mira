@@ -167,7 +167,19 @@ test('pages have no serious accessibility violations', async ({ page }) => {
 test('“Brief me” opens a new chat with a short briefing that links to the lesson and news', async ({ page }) => {
   await registerAndLogin(page);
   await page.goto('/');
+  // Home defaults to the newspaper front page; tapping a section opens it.
+  await expect(page.getByRole('heading', { name: 'The Mira Times' })).toBeVisible();
+  await page.getByRole('button', { name: 'Open to-dos' }).click();
+  await expect(page.getByRole('dialog')).toContainText('To-Do Dispatch');
+  await page.getByRole('button', { name: 'Close story' }).click();
+  await page.getByRole('button', { name: /Read concept:/ }).click();
+  await expect(page.getByRole('dialog').getByRole('link', { name: /full lesson/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Close story' }).click();
+  // Classic view sticks after a reload.
+  await page.getByRole('button', { name: 'Classic view' }).click();
   for (const box of ['To-dos', 'Reminders', 'Cyber news', 'Learning']) await expect(page.getByRole('region', { name: box })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('region', { name: 'To-dos' })).toBeVisible();
   await page.getByRole('link', { name: 'Brief me' }).click();
   await expect(page).toHaveURL(/\/chat\?c=/, { timeout: 20_000 });
   const briefing = page.locator('li').filter({ hasText: 'Mira · Briefing' }).last();

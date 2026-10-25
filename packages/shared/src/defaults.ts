@@ -51,6 +51,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   dashboard: {
     order: ['brief', 'tasks', 'reminders', 'learning', 'news', 'quickActions'],
     hidden: [],
+    style: 'newspaper',
   },
 };
 

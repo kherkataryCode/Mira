@@ -39,7 +39,7 @@ export async function homeRoutes(app: FastifyInstance): Promise<void> {
       app.db.select().from(newsItems)
         .where(and(eq(newsItems.userId, me.id), eq(newsItems.hidden, false), gte(newsItems.relevance, CYBER_RELEVANCE_THRESHOLD), gte(newsItems.fetchedAt, new Date(now.getTime() - 72 * 3_600_000))))
         .orderBy(sql`array_position(array['exploited','proof-of-concept','not-reported'], ${newsItems.exploitation})`, sql`${newsItems.publishedAt} desc nulls last`)
-        .limit(3),
+        .limit(5),
       app.db.select().from(briefs).where(and(eq(briefs.userId, me.id), eq(briefs.localDate, today)))
         .orderBy(desc(briefs.createdAt)).limit(1),
       app.db.select({ n: sql<number>`count(*)::int` }).from(lessonProgress)
@@ -63,7 +63,7 @@ export async function homeRoutes(app: FastifyInstance): Promise<void> {
       upNext,
       reminders: nextReminders,
       lesson: lesson
-        ? { id: lesson.lesson.id, title: lesson.lesson.title, topic: lesson.lesson.topic, minutes: lesson.lesson.minutes, summary: lesson.lesson.summary, artSeed: lesson.lesson.artSeed, status: lesson.status }
+        ? { id: lesson.lesson.id, title: lesson.lesson.title, topic: lesson.lesson.topic, minutes: lesson.lesson.minutes, summary: lesson.lesson.summary, takeaway: lesson.lesson.takeaway, artSeed: lesson.lesson.artSeed, status: lesson.status }
         : null,
       news: topNews,
       brief: latestBrief[0] ?? null,

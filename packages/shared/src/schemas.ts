@@ -323,6 +323,8 @@ export const preferencesSchema = z
       .object({
         order: z.array(widgetIdSchema).max(widgetIds.length),
         hidden: z.array(widgetIdSchema).max(widgetIds.length),
+        /** Home layout: a newspaper front page, or the classic four boxes. */
+        style: z.enum(['newspaper', 'classic']),
       })
       .strict(),
   })

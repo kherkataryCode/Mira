@@ -74,6 +74,10 @@ export interface NewsItem {
   isDemo: boolean;
   relevance?: number;
   exploitation?: 'exploited' | 'proof-of-concept' | 'not-reported';
+  /** Grounded one-paragraph brief, when a briefing has already written one. */
+  brief?: string | null;
+  affected?: string | null;
+  action?: string | null;
 }
 
 export interface Note {
@@ -121,7 +125,7 @@ export interface Home {
   /** Next open to-dos (by due date), for when nothing is due today. */
   upNext: Task[];
   reminders: Reminder[];
-  lesson: { id: string; title: string; topic: string; minutes: number; summary: string; artSeed: number; status: string | null } | null;
+  lesson: { id: string; title: string; topic: string; minutes: number; summary: string; takeaway: string; artSeed: number; status: string | null } | null;
   news: NewsItem[];
   brief: Brief | null;
 }

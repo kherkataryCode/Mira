@@ -173,3 +173,43 @@ body {
 
 .tile { transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease; }
 .tile:hover { transform: translateY(-3px); box-shadow: 0 14px 30px -18px color-mix(in srgb, var(--accent) 60%, transparent); }
+
+/* ---------- Newspaper front page (Home) ---------- */
+.paper {
+  --np-ink: #1b1712;
+  --np-rule: color-mix(in srgb, #1b1712 30%, transparent);
+  --np-red: #b3261e;
+  color: var(--np-ink);
+  background:
+    radial-gradient(ellipse at 20% 0%, rgba(255, 255, 255, 0.55), transparent 60%),
+    radial-gradient(ellipse at 100% 100%, rgba(120, 90, 40, 0.12), transparent 55%),
+    #f3ead8;
+  font-family: var(--font-display);
+}
+.np-masthead {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(2.3rem, 1rem + 7vw, 5.6rem);
+  line-height: 0.95;
+  letter-spacing: -0.03em;
+  font-variation-settings: 'SOFT' 0, 'WONK' 1;
+}
+.np-headline { font-family: var(--font-display); font-weight: 760; line-height: 1.03; letter-spacing: -0.015em; }
+.np-kicker { font-family: var(--font-sans); font-size: 0.68rem; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; color: var(--np-red); }
+.np-byline { font-family: var(--font-sans); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.7; }
+.np-body, .np-hit p, .np-hit li { font-family: var(--font-display); font-size: 1.02rem; line-height: 1.55; }
+.np-dropcap::first-letter { float: left; font-size: 3.2em; line-height: 0.85; font-weight: 800; padding: 0.06em 0.08em 0 0; }
+.np-pull { border-left: 3px solid var(--np-red); padding-left: 0.75rem; font-style: italic; font-size: 1.1rem; }
+.np-photo { filter: grayscale(0.85) contrast(1.15) sepia(0.25); border: 1px solid var(--np-ink); transition: filter 0.3s ease; }
+.np-hit { display: block; width: 100%; border-radius: 2px; transition: background-color 0.2s ease; }
+.np-hit:hover { background-color: rgba(27, 23, 18, 0.05); }
+.np-hit:hover .np-photo { filter: none; }
+.np-hit:hover .np-headline { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; }
+.np-box { border: 2px solid var(--np-ink); padding: 0.9rem 1rem; box-shadow: 4px 4px 0 var(--np-ink); }
+.np-button { display: inline-flex; min-height: 2.75rem; align-items: center; gap: 0.5rem; border: 1.5px solid var(--np-ink); padding: 0 1rem; font-family: var(--font-sans); font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+.np-button-solid { background: var(--np-ink); color: #f3ead8; }
+.np-cta { display: inline-flex; align-items: center; gap: 0.35rem; align-self: flex-start; min-height: 2.75rem; font-family: var(--font-sans); font-weight: 700; color: var(--np-red); text-decoration: underline; }
+.np-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.np-list li { display: flex; flex-direction: column; border-bottom: 1px dotted var(--np-rule); padding-bottom: 0.4rem; }
+.np-list li span { font-family: var(--font-sans); font-size: 0.8rem; opacity: 0.7; }
+.paper :focus-visible { outline-color: var(--np-red); }

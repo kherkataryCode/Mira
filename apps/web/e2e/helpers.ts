@@ -9,7 +9,7 @@ export async function registerAndLogin(page: Page, name = 'Asha', opts: { buddy?
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill('correct horse battery staple');
   await page.getByRole('button', { name: 'Create account' }).click();
-  await expect(page.getByRole('heading', { level: 1 })).toContainText(name);
+  await expect(page.locator('main')).toContainText(name);
   return email;
 }
 

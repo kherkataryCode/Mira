@@ -169,6 +169,11 @@ export default function SettingsPage() {
                 <option value="system">Match system</option>
               </select>
             </Field>
+            <Toggle
+              label="Newspaper front page on Home (off = classic boxes)"
+              checked={draft.dashboard.style === 'newspaper'}
+              onChange={(v) => set('dashboard', { ...draft.dashboard, style: v ? 'newspaper' : 'classic' })}
+            />
             <Field label="Reply length">
               <select value={draft.verbosity} onChange={(e) => set('verbosity', e.target.value as Preferences['verbosity'])} className={inputClass}>
                 <option value="concise">Concise</option>

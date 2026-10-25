@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.0 — 2026-10-25
+
+- Home can now be a **newspaper front page**, “The Mira Times”, and this is the default. The top cyber story leads, with more stories in columns and the Concept of the Day in a sidebar. The to-dos and reminders boxes get rule-written headlines. Tap any part to read it full screen. Switch between this and the classic boxes with “Classic view” on the page or in Settings → Time & appearance. The choice is saved to your account.
+- The home page now loads up to 5 cyber stories and the lesson takeaway. No AI calls were added.
+
 ## 0.3.0 — 2026-10-25
 
 - **Brief me** opens a new chat with a short briefing: to-dos, reminders, a few cyber news bullets and the concept of the day, with links to the full lesson and the news page. It makes no AI call, so it costs nothing.

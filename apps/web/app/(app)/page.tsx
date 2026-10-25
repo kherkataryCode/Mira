@@ -2,7 +2,10 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { AlarmClock, ArrowRight, BookOpen, CheckSquare, Flame, MessageCircle, Newspaper, Sparkles } from 'lucide-react';
-import type { Home } from '@/lib/types';
+import type { Home, Preferences } from '@/lib/types';
+import { api } from '@/lib/api';
+import { useSession } from '@/components/AppShell';
+import { Newspaper as NewspaperFront } from '@/components/Newspaper';
 import { useResource } from '@/lib/hooks';
 import { fmtDateTime, relativeTime } from '@/lib/format';
 import { Art, MiraFace } from '@/components/Art';
@@ -70,10 +73,25 @@ function HomeSkeleton() {
 
 export default function HomePage() {
   const { data, error, loading, reload } = useResource<Home>('/home');
+  const { prefs, setPrefs } = useSession();
 
   if (loading && !data) return <HomeSkeleton />;
   if (error && !data) return <div className="pt-6"><ErrorNote message={error} onRetry={reload} /></div>;
   if (!data) return null;
+
+  const style = prefs?.dashboard.style ?? data.dashboard.style ?? 'newspaper';
+  const setStyle = async (next: 'newspaper' | 'classic') => {
+    const base = prefs?.dashboard ?? data.dashboard;
+    const res = await api.patch<{ preferences: Preferences }>('/preferences', { dashboard: { ...base, style: next } });
+    setPrefs(res.preferences);
+  };
+  if (style === 'newspaper') {
+    return (
+      <NewspaperFront data={data} onClassic={() => void setStyle('classic')}>
+        <Card className="mt-4"><QuickAdd onSaved={reload} /></Card>
+      </NewspaperFront>
+    );
+  }
 
   const tz = data.timezone;
   const dateLabel = new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long', timeZone: tz }).format(new Date());
@@ -97,6 +115,9 @@ export default function HomePage() {
           <Link href="/chat" className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full border border-line px-5 text-sm font-semibold hover:border-muted sm:flex-none">
             <MessageCircle className="size-4" aria-hidden /> Talk to Mira
           </Link>
+          <button type="button" onClick={() => void setStyle('newspaper')} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full border border-line px-5 text-sm font-semibold hover:border-muted sm:flex-none">
+            <Newspaper className="size-4" aria-hidden /> Newspaper
+          </button>
         </div>
       </header>
 
@@ -158,14 +179,14 @@ export default function HomePage() {
           href="/news"
           seed={9}
           icon={<Newspaper className="size-4" aria-hidden />}
-          count={data.news.length}
+          count={Math.min(data.news.length, 3)}
           caption={data.news.length ? 'Top stories · last 3 days' : 'Quiet out there'}
           footer="All cyber news"
           delay={3}
         >
           {data.news.length ? (
             <ul className="flex flex-col gap-1.5">
-              {data.news.map((n) => (
+              {data.news.slice(0, 3).map((n) => (
                 <Line key={n.id}>
                   <span className="min-w-0">
                     <a href={n.url} target="_blank" rel="noopener noreferrer nofollow" className="line-clamp-2 font-medium hover:underline">{n.title}</a>
