@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, max, or, sql } from 'drizzle-orm';
 import { DateTime } from 'luxon';
+import { eventsInRange } from './calendar.js';
 import { z } from 'zod';
 import {
   CYBER_RELEVANCE_THRESHOLD,
@@ -8,6 +9,7 @@ import {
   LIMITS,
   cyberRelevance,
   localDate,
+  wordForDate,
   type LearningTopicId,
   type Preferences,
 } from '@friday/shared';
@@ -24,6 +26,7 @@ import {
   reminders,
   tasks,
   users,
+  type BriefingSnapshot,
 } from '../db/schema.js';
 import { TOPIC_REFERENCES } from '../db/lessons-content.js';
 import type { AiGateway } from '../ai/gateway.js';
@@ -372,6 +375,7 @@ export interface ComposedBriefing {
   lessonId: string | null;
   newsItemIds: string[];
   generatedBy: 'deterministic' | 'ai';
+  snapshot?: BriefingSnapshot;
 }
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
@@ -387,6 +391,26 @@ async function composeQuickBriefing(db: Db, ai: AiGateway | null, userId: string
   const out: string[] = [`**${greeting}, ${name}. Here's your day at a glance.**`];
 
   const p = await planLines(db, userId, prefs, local);
+  const dayStart = local.startOf('day');
+  const evs = await eventsInRange(db, userId, dayStart.toJSDate(), dayStart.plus({ days: 1 }).toJSDate());
+  const evLines = evs.slice(0, 5).map((e) => `${e.allDay ? 'All day' : DateTime.fromISO(e.startAt, { zone }).toFormat('h:mm a')} · ${oneLine(e.title)}${e.location ? ` · ${clip(oneLine(e.location), 40)}` : ''}`);
+
+  await ensureDefaultSources(db, userId);
+  const today = localDate(now, zone);
+  const earlier = await db.select({ ids: briefings.newsItemIds }).from(briefings).where(and(eq(briefings.userId, userId), eq(briefings.localDate, today)));
+  const news = (await selectNews(db, userId, now, earlier.flatMap((e) => e.ids))).slice(0, 3);
+  const lesson = await selectConcept(db, ai, userId, prefs);
+  const word = wordForDate(today);
+
+  // The three things worth knowing: the most urgent story, the next commitment, and something to learn.
+  const highlights = [
+    news[0] ? `${news[0].exploitation === 'exploited' ? '🔥 ' : ''}${clip(oneLine(news[0].title), 90)}` : null,
+    evLines[0] ? `Next up: ${evLines[0]}` : p.todos[0] ? `Top to-do: ${p.todos[0]}` : null,
+    `Word of the day: **${word.word}** — ${clip(word.definition, 80)}`,
+  ].filter(Boolean);
+  out.push(`**⭐ 3 things worth knowing today**\n\n${highlights.map((h) => `- ${h}`).join('\n')}`);
+
+  out.push(`**📅 Schedule**\n\n${evLines.length ? evLines.map((e) => `- ${e}`).join('\n') : '- No events today.'}`);
   const todos = p.todos.slice(0, 3);
   out.push(
     `**✅ To-dos**\n\n${todos.length ? todos.map((t) => `- ${t}`).join('\n') : '- Nothing due today.'}${p.todos.length > 3 ? `\n- …and ${p.todos.length - 3} more` : ''}${p.overdue ? `\n- ⚠️ ${p.overdue} overdue from earlier` : ''}`,
@@ -394,20 +418,18 @@ async function composeQuickBriefing(db: Db, ai: AiGateway | null, userId: string
   const rem = p.reminders.slice(0, 3);
   out.push(`**⏰ Reminders**\n\n${rem.length ? rem.map((r) => `- ${r}`).join('\n') : '- None today.'}`);
 
-  await ensureDefaultSources(db, userId);
-  const today = localDate(now, zone);
-  const earlier = await db.select({ ids: briefings.newsItemIds }).from(briefings).where(and(eq(briefings.userId, userId), eq(briefings.localDate, today)));
-  const news = (await selectNews(db, userId, now, earlier.flatMap((e) => e.ids))).slice(0, 3);
   const tag = (n: NewsRow) => (n.exploitation === 'exploited' ? ' · 🔥 _exploited_' : n.exploitation === 'proof-of-concept' ? ' · _PoC public_' : '');
+  const pubTime = (n: NewsRow) => (n.publishedAt ? DateTime.fromJSDate(n.publishedAt, { zone }).toRelative({ base: local }) ?? '' : '');
   out.push(
     `**🛡️ Cyber news**\n\n${
       news.length
-        ? news.map((n) => `- [${clip(oneLine(n.title), 110)}](${n.url})${tag(n)}${n.summary ? ` — ${clip(oneLine(n.brief ?? n.summary), 140)}` : ''}`).join('\n')
+        ? news
+            .map((n) => `- [${clip(oneLine(n.title), 110)}](${n.url})${tag(n)} — _${n.sourceName}${pubTime(n) ? `, ${pubTime(n)}` : ''}_${n.summary ? `\n  ${clip(oneLine(n.brief ?? n.summary), 140)}` : ''}\n  **Why it matters:** ${clip(oneLine(n.action ?? FALLBACK_ACTION[n.exploitation]), 140)}`)
+            .join('\n')
         : '- No new stories from your sources right now.'
     }`,
   );
 
-  const lesson = await selectConcept(db, ai, userId, prefs);
   if (lesson) {
     const concept = [`**💡 Concept: ${lesson.title}**`, clip(oneLine(lesson.summary), 260)];
     if (lesson.steps.length) concept.push(lesson.steps.slice(0, 3).map((s) => `- ${clip(oneLine(s), 160)}`).join('\n'));
@@ -415,14 +437,24 @@ async function composeQuickBriefing(db: Db, ai: AiGateway | null, userId: string
     if (lesson.question) concept.push(`**Think about it:** ${oneLine(lesson.question)}`);
     out.push(concept.join('\n\n'));
   }
+  out.push(`**📖 Word of the day: ${word.word}**\n\n_${word.pos}_ · ${word.ipa}\n\n${word.definition}\n\n- “${word.examples[0]}”\n- Often used as: ${word.collocations.join(', ')}`);
 
-  out.push(`${lesson ? `[📘 Open the full lesson](/learn/${lesson.id}) · ` : ''}[📰 All cyber news](/news)`);
+  out.push(`${lesson ? `[📘 Open the full lesson](/learn/${lesson.id}) · ` : ''}[📰 All cyber news](/news) · [📅 Calendar](/calendar)`);
+  const snapshot: BriefingSnapshot = {
+    stories: news.map((n) => ({ id: n.id, title: n.title, source: n.sourceName, url: n.url, exploitation: n.exploitation, summary: clip(oneLine(n.brief ?? n.summary ?? ''), 300) })),
+    tasks: p.todos,
+    reminders: p.reminders,
+    events: evLines,
+    concept: lesson ? { id: lesson.id, title: lesson.title, takeaway: lesson.takeaway } : null,
+    word: { word: word.word, definition: word.definition },
+  };
   return {
     markdown: out.join('\n\n'),
     title: 'Your briefing',
     lessonId: lesson?.id ?? null,
     newsItemIds: news.map((n) => n.id),
     generatedBy: lesson?.origin === 'ai' ? 'ai' : 'deterministic',
+    snapshot,
   };
 }
 
@@ -439,9 +471,12 @@ export async function composeBriefing(db: Db, ai: AiGateway | null, userId: stri
   let usedAi = false;
   let lessonId: string | null = null;
   let newsIds: string[] = [];
+  const snapshot: BriefingSnapshot = { stories: [], tasks: [], reminders: [], events: [], concept: null, word: null };
 
   if (parts.plan) {
     const p = await planLines(db, userId, prefs, local);
+    snapshot.tasks = p.todos;
+    snapshot.reminders = p.reminders;
     const lines = ['## Your day'];
     lines.push(`**Reminders**\n\n${p.reminders.length ? p.reminders.map((r) => `- ${r}`).join('\n') : '- None scheduled today.'}`);
     lines.push(`**To-dos due today**\n\n${p.todos.length ? p.todos.map((t) => `- ${t}`).join('\n') : '- Nothing due today.'}`);
@@ -461,6 +496,7 @@ export async function composeBriefing(db: Db, ai: AiGateway | null, userId: stri
     const items = await enrichNews(db, ai, userId, prefs, await selectNews(db, userId, now, earlier.flatMap((e) => e.ids)));
     usedAi ||= items.some((i) => Boolean(i.brief));
     newsIds = items.map((i) => i.id);
+    snapshot.stories = items.map((n) => ({ id: n.id, title: n.title, source: n.sourceName, url: n.url, exploitation: n.exploitation, summary: oneLine(n.brief ?? n.summary ?? '').slice(0, 300) }));
     sections.push(renderNewsSection(items, zone, { sources: status?.sources ?? 0, failing: status?.failing ?? 0, checkedAt: status?.last ? new Date(status.last) : null }));
   }
 
@@ -468,11 +504,15 @@ export async function composeBriefing(db: Db, ai: AiGateway | null, userId: stri
     const lesson = await selectConcept(db, ai, userId, prefs);
     if (lesson) {
       lessonId = lesson.id;
+      snapshot.concept = { id: lesson.id, title: lesson.title, takeaway: lesson.takeaway };
       usedAi ||= lesson.origin === 'ai';
       sections.push(renderConceptSections(lesson));
     } else {
       sections.push(`## B. Concept of the Day\n\nNo lesson available for your topics (${prefs.learningTopics.map(topicLabel).join(', ')}).`);
     }
+    const w = wordForDate(localDate(now, zone));
+    snapshot.word = { word: w.word, definition: w.definition };
+    sections.push(`## Word of the day: ${w.word}\n\n_${w.pos}_ · ${w.ipa} — ${w.definition}\n\n- “${w.examples[0]}”`);
   }
 
   if (parts.tomorrow) {
@@ -487,6 +527,7 @@ export async function composeBriefing(db: Db, ai: AiGateway | null, userId: stri
     title: slot === 'evening' ? 'Evening security briefing' : slot === 'morning' ? 'Morning briefing' : 'Your briefing',
     lessonId,
     newsItemIds: newsIds,
+    snapshot,
     generatedBy: usedAi ? 'ai' : 'deterministic',
   };
 }
@@ -550,6 +591,7 @@ export async function postBriefing(
     lessonId: composed.lessonId,
     newsItemIds: composed.newsItemIds,
     generatedBy: composed.generatedBy,
+    snapshot: composed.snapshot ?? null,
   });
   await db.update(conversations).set({ updatedAt: now }).where(eq(conversations.id, conversationId));
 

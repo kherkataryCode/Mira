@@ -3,6 +3,8 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { AlarmClock, ArrowRight, BookOpen, CheckSquare, Flame, MessageCircle, Newspaper, Sparkles } from 'lucide-react';
 import type { Home, Preferences } from '@/lib/types';
+import { HOME_LAYOUTS, type HomeLayoutId } from '@friday/shared';
+import { AltLayout, LayoutBar, ScheduleList, WordCard, autoLayout } from '@/components/HomeLayouts';
 import { api } from '@/lib/api';
 import { useSession } from '@/components/AppShell';
 import { Newspaper as NewspaperFront } from '@/components/Newspaper';
@@ -79,17 +81,47 @@ export default function HomePage() {
   if (error && !data) return <div className="pt-6"><ErrorNote message={error} onRetry={reload} /></div>;
   if (!data) return null;
 
-  const style = prefs?.dashboard.style ?? data.dashboard.style ?? 'newspaper';
-  const setStyle = async (next: 'newspaper' | 'classic') => {
-    const base = prefs?.dashboard ?? data.dashboard;
-    const res = await api.patch<{ preferences: Preferences }>('/preferences', { dashboard: { ...base, style: next } });
+  const dash = prefs?.dashboard ?? data.dashboard;
+  const mode = dash.layoutMode ?? 'manual';
+  const style: HomeLayoutId = mode === 'auto' ? autoLayout(data) : (dash.style ?? 'newspaper');
+  const dense = dash.density === 'compact';
+  const saveDash = async (patch: Partial<Preferences['dashboard']>) => {
+    const next = { ...dash, ...patch };
+    if (prefs) setPrefs({ ...prefs, dashboard: next });
+    const res = await api.patch<{ preferences: Preferences }>('/preferences', { dashboard: next });
     setPrefs(res.preferences);
   };
+  const setStyle = (next: HomeLayoutId) => void saveDash({ style: next, layoutMode: 'manual' });
+  const bar = (
+    <LayoutBar
+      current={style}
+      mode={mode}
+      density={dash.density ?? 'comfortable'}
+      onPick={setStyle}
+      onAuto={(on) => void saveDash({ layoutMode: on ? 'auto' : 'manual', style })}
+      onShuffle={() => {
+        const others = HOME_LAYOUTS.map((l) => l.id).filter((id) => id !== style);
+        setStyle(others[Math.floor(Math.random() * others.length)]!);
+      }}
+      onDensity={(d) => void saveDash({ density: d })}
+    />
+  );
+  const quickAdd = <Card className="mt-4"><QuickAdd onSaved={reload} /></Card>;
   if (style === 'newspaper') {
     return (
-      <NewspaperFront data={data} onClassic={() => void setStyle('classic')}>
-        <Card className="mt-4"><QuickAdd onSaved={reload} /></Card>
-      </NewspaperFront>
+      <div className="pt-4">
+        {bar}
+        <NewspaperFront data={data} onClassic={() => setStyle('classic')}>{quickAdd}</NewspaperFront>
+      </div>
+    );
+  }
+  if (style !== 'classic') {
+    return (
+      <div className="pt-4">
+        {bar}
+        <AltLayout id={style} data={data} dense={dense} />
+        {style === 'focus' ? null : quickAdd}
+      </div>
     );
   }
 
@@ -99,7 +131,8 @@ export default function HomePage() {
   const open = data.counts.openTasks;
 
   return (
-    <div className="pt-5">
+    <div className="pt-4">
+      {bar}
       <header className="compact-landscape rise mb-6 flex flex-wrap items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3">
           <MiraFace size={52} />
@@ -115,7 +148,7 @@ export default function HomePage() {
           <Link href="/chat" className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full border border-line px-5 text-sm font-semibold hover:border-muted sm:flex-none">
             <MessageCircle className="size-4" aria-hidden /> Talk to Mira
           </Link>
-          <button type="button" onClick={() => void setStyle('newspaper')} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full border border-line px-5 text-sm font-semibold hover:border-muted sm:flex-none">
+          <button type="button" onClick={() => setStyle('newspaper')} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full border border-line px-5 text-sm font-semibold hover:border-muted sm:flex-none">
             <Newspaper className="size-4" aria-hidden /> Newspaper
           </button>
         </div>
@@ -225,9 +258,14 @@ export default function HomePage() {
         </Tile>
       </div>
 
-      <Card className="rise mt-4">
-        <QuickAdd onSaved={reload} />
-      </Card>
+      <div className={`mt-4 grid ${dense ? 'gap-3' : 'gap-4'} lg:grid-cols-2`}>
+        <section aria-label="Today's schedule" className="rise rounded-3xl border border-line bg-surface p-4 sm:p-5">
+          <div className="mb-2 flex items-center justify-between"><h2 className="text-sm font-semibold">Today’s schedule</h2><Link href="/calendar" className="text-xs text-muted hover:text-text">Calendar →</Link></div>
+          <ScheduleList data={data} />
+        </section>
+        <WordCard data={data} dense={dense} />
+      </div>
+      {quickAdd}
     </div>
   );
 }

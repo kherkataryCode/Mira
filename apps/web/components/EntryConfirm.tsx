@@ -8,9 +8,11 @@ import { fromLocalInput, toLocalInput } from '@/lib/format';
 import { Button, ErrorNote, Field, inputClass } from './ui';
 
 export interface Draft {
-  kind: 'task' | 'reminder';
+  kind: 'task' | 'reminder' | 'event';
   title: string;
   dueAt: string | null;
+  /** Events only. */
+  endAt?: string | null;
   priority: 'low' | 'medium' | 'high' | 'urgent';
   recurrence: Recurrence;
   tags?: string[];
@@ -25,10 +27,18 @@ export function EntryConfirm({ draft, onDone, onCancel, compact }: { draft: Draf
   const [kind, setKind] = useState(draft.kind);
   const [title, setTitle] = useState(draft.title);
   const [when, setWhen] = useState(toLocalInput(draft.dueAt));
+  const [until, setUntil] = useState(toLocalInput(draft.endAt ?? (draft.dueAt ? new Date(new Date(draft.dueAt).getTime() + 3_600_000).toISOString() : null)));
   const [priority, setPriority] = useState(draft.priority);
   const [acknowledged, setAcknowledged] = useState(draft.ambiguities.length === 0);
   const save = useAction(async () => {
     const at = fromLocalInput(when);
+    if (kind === 'event') {
+      const end = fromLocalInput(until);
+      if (!at || !end) throw new Error('Pick a start and end time for the event.');
+      const res = await api.post<{ conflicts: { title: string }[] }>('/events', { title, startAt: at, endAt: end, recurrence: draft.recurrence });
+      onDone(`Event added to your calendar: ${title}${res.conflicts.length ? ` — note: overlaps ${res.conflicts.map((c) => c.title).join(', ')}` : ''}`);
+      return;
+    }
     if (kind === 'reminder') {
       if (!at) throw new Error('Pick a date and time for the reminder.');
       await api.post('/reminders', { title, remindAt: at, recurrence: draft.recurrence });
@@ -42,7 +52,7 @@ export function EntryConfirm({ draft, onDone, onCancel, compact }: { draft: Draf
   return (
     <div className={`rounded-2xl border border-line bg-raised ${compact ? 'p-3' : 'p-4'} text-sm`}>
       <div className="mb-3 flex flex-wrap items-center gap-2" role="radiogroup" aria-label="Type">
-        {(['task', 'reminder'] as const).map((k) => (
+        {(['task', 'reminder', 'event'] as const).map((k) => (
           <button
             key={k}
             type="button"
@@ -60,9 +70,14 @@ export function EntryConfirm({ draft, onDone, onCancel, compact }: { draft: Draf
         <Field label="Title">
           <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} className={inputClass} />
         </Field>
-        <Field label={kind === 'reminder' ? 'Remind me at' : 'Due'} hint="Shown in this device's local time">
+        <Field label={kind === 'reminder' ? 'Remind me at' : kind === 'event' ? 'Starts' : 'Due'} hint="Shown in this device's local time">
           <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} className={inputClass} />
         </Field>
+        {kind === 'event' ? (
+          <Field label="Ends">
+            <input type="datetime-local" value={until} onChange={(e) => setUntil(e.target.value)} className={inputClass} />
+          </Field>
+        ) : null}
         {kind === 'task' ? (
           <Field label="Priority">
             <select value={priority} onChange={(e) => setPriority(e.target.value as Draft['priority'])} className={inputClass}>

@@ -1,7 +1,7 @@
 'use client';
 import { useState, type FormEvent } from 'react';
 import { Sparkles } from 'lucide-react';
-import type { ParsedEntry } from '@friday/shared';
+import type { ParsedEntry, ParsedEvent } from '@friday/shared';
 import { api } from '@/lib/api';
 import { useAction } from '@/lib/hooks';
 import { Button, ErrorNote, inputClass } from './ui';
@@ -13,8 +13,10 @@ export function QuickAdd({ onSaved, placeholder = 'e.g. Remind me to call the de
   const [draft, setDraft] = useState<Draft | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const parse = useAction(async (t: string) => {
-    const res = await api.post<{ preview: ParsedEntry }>('/parse', { text: t });
+    const res = await api.post<{ preview: ParsedEntry; event: ParsedEvent | null }>('/parse', { text: t });
     const p = res.preview;
+    const ev = res.event;
+    if (ev) return setDraft({ kind: 'event', title: ev.title, dueAt: ev.startAt, endAt: ev.endAt, priority: 'medium', recurrence: ev.recurrence, ambiguities: ev.ambiguities });
     setDraft({ kind: p.kind, title: p.title, dueAt: p.dueAt, priority: p.priority, recurrence: p.recurrence, tags: p.tags, ambiguities: p.ambiguities });
   });
 

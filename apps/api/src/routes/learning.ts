@@ -5,6 +5,7 @@ import { lessonProgress, lessons, quizAttempts } from '../db/schema.js';
 import { authUser } from '../auth/plugin.js';
 import { badRequest, notFound } from '../util/errors.js';
 import { parse } from '../util/validate.js';
+import { markLearningDay } from '../services/streak.js';
 import { getPreferences } from '../services/prefs.js';
 
 type IdParams = { Params: { id: string } };
@@ -141,6 +142,7 @@ export async function learningRoutes(app: FastifyInstance): Promise<void> {
         .values({ userId: me.id, lessonId: lesson.id, ...values })
         .onConflictDoUpdate({ target: [lessonProgress.userId, lessonProgress.lessonId], set: values });
     });
+    await markLearningDay(app.db, me.id);
     return {
       correct,
       total: lesson.quiz.length,
@@ -162,6 +164,7 @@ export async function learningRoutes(app: FastifyInstance): Promise<void> {
       .update(lessonProgress)
       .set({ ease: next.ease, intervalDays: next.intervalDays, repetitions: next.repetitions, reviewDueAt: next.dueAt, updatedAt: new Date() })
       .where(and(eq(lessonProgress.userId, me.id), eq(lessonProgress.lessonId, lesson.id)));
+    await markLearningDay(app.db, me.id);
     return { nextReviewAt: next.dueAt.toISOString() };
   });
 

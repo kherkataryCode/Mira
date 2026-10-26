@@ -142,6 +142,40 @@ export const snoozeSchema = z
   .object({ minutes: z.number().int().min(1).max(24 * 60) })
   .strict();
 
+/* ---------- calendar events ---------- */
+
+export const eventCreateSchema = z
+  .object({
+    title: z.string().trim().min(1).max(200),
+    startAt: isoDateTime,
+    endAt: isoDateTime,
+    allDay: z.boolean().default(false),
+    location: z.string().trim().max(300).nullable().optional(),
+    notes: z.string().max(5000).nullable().optional(),
+    attendees: z.array(z.string().trim().min(1).max(120)).max(30).default([]),
+    recurrence: recurrenceSchema.default({ freq: 'none' }),
+    /** Minutes before start to remind; creates one linked reminder (not a copy of the event). */
+    reminderMinutes: z.number().int().min(0).max(10080).nullable().optional(),
+  })
+  .strict()
+  .refine((e) => new Date(e.endAt).getTime() >= new Date(e.startAt).getTime(), { message: 'End must be after start', path: ['endAt'] });
+export type EventCreate = z.infer<typeof eventCreateSchema>;
+
+export const eventUpdateSchema = z
+  .object({
+    title: z.string().trim().min(1).max(200).optional(),
+    startAt: isoDateTime.optional(),
+    endAt: isoDateTime.optional(),
+    allDay: z.boolean().optional(),
+    location: z.string().trim().max(300).nullable().optional(),
+    notes: z.string().max(5000).nullable().optional(),
+    attendees: z.array(z.string().trim().min(1).max(120)).max(30).optional(),
+    recurrence: recurrenceSchema.optional(),
+  })
+  .strict();
+
+export const rangeQuerySchema = z.object({ from: isoDateTime, to: isoDateTime }).strict();
+
 /* ---------- notes ---------- */
 
 export const noteCreateSchema = z
@@ -200,6 +234,15 @@ export const proposalSchema = z.discriminatedUnion('kind', [
     recurrence: recurrenceSchema,
     needsConfirmation: z.array(z.string()),
   }),
+  z.object({
+    kind: z.literal('event'),
+    title: z.string(),
+    startAt: z.string(),
+    endAt: z.string(),
+    allDay: z.boolean(),
+    recurrence: recurrenceSchema,
+    needsConfirmation: z.array(z.string()),
+  }),
 ]);
 export type Proposal = z.infer<typeof proposalSchema>;
 
@@ -252,6 +295,18 @@ export const LEARNING_TOPICS = [
 export const learningTopicIds = LEARNING_TOPICS.map((t) => t.id) as unknown as readonly [string, ...string[]];
 export const learningTopicSchema = z.enum(LEARNING_TOPICS.map((t) => t.id) as [LearningTopicId, ...LearningTopicId[]]);
 export type LearningTopicId = (typeof LEARNING_TOPICS)[number]['id'];
+
+export const HOME_LAYOUTS = [
+  { id: 'classic', label: 'Classic Grid', blurb: 'Balanced cards' },
+  { id: 'newspaper', label: 'Newspaper', blurb: 'Headline-led front page' },
+  { id: 'magazine', label: 'Magazine', blurb: 'Featured story + cards' },
+  { id: 'timeline', label: 'Timeline', blurb: 'Your day by time' },
+  { id: 'bento', label: 'Bento', blurb: 'Asymmetric widgets' },
+  { id: 'focus', label: 'Focus', blurb: 'Essentials only' },
+  { id: 'command', label: 'Command Center', blurb: 'Dense overview' },
+  { id: 'knowledge', label: 'Knowledge Map', blurb: 'Topics & saved items' },
+] as const;
+export type HomeLayoutId = (typeof HOME_LAYOUTS)[number]['id'];
 
 const widgetIds = ['brief', 'tasks', 'reminders', 'learning', 'news', 'quickActions'] as const;
 export const widgetIdSchema = z.enum(widgetIds);
@@ -323,8 +378,13 @@ export const preferencesSchema = z
       .object({
         order: z.array(widgetIdSchema).max(widgetIds.length),
         hidden: z.array(widgetIdSchema).max(widgetIds.length),
-        /** Home layout: a newspaper front page, or the classic four boxes. */
-        style: z.enum(['newspaper', 'classic']),
+        /** Home layout (presentation only; all layouts read the same data). */
+        style: z.enum(HOME_LAYOUTS.map((l) => l.id) as [HomeLayoutId, ...HomeLayoutId[]]),
+        /** manual = keep the chosen layout; auto = Mira picks one per day from the content. */
+        layoutMode: z.enum(['manual', 'auto']),
+        density: z.enum(['comfortable', 'compact']),
+        /** Sidebar default on wide screens. */
+        sidebar: z.enum(['pinned', 'hidden']),
       })
       .strict(),
   })
@@ -332,3 +392,19 @@ export const preferencesSchema = z
 export type Preferences = z.infer<typeof preferencesSchema>;
 
 export const preferencesPatchSchema = preferencesSchema.partial();
+
+export const conversationUpdateSchema = z
+  .object({
+    title: z.string().trim().min(1).max(120).optional(),
+    pinned: z.boolean().optional(),
+    archived: z.boolean().optional(),
+    folder: z.enum(['Briefings', 'Learning', 'Productivity', 'Research']).nullable().optional(),
+  })
+  .strict();
+
+export const conversationBulkSchema = z
+  .object({ ids: z.array(idSchema).min(1).max(100), action: z.enum(['archive', 'unarchive', 'delete']) })
+  .strict();
+
+export const wordProgressSchema = z.object({ status: z.enum(['saved', 'known', 'none']) }).strict();
+export const wordQuizSchema = z.union([z.object({ choice: z.number().int().min(0).max(5) }).strict(), z.object({ remembered: z.boolean() }).strict()]);

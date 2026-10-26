@@ -20,6 +20,7 @@ function ProposalBlock({ p }: { p: Proposal }) {
   const [dismissed, setDismissed] = useState(false);
   if (dismissed) return <Body muted>Proposal dismissed — nothing was saved.</Body>;
   if (done) return <Body style={{ color: colors.positive }}>{done}</Body>;
+  if (p.kind === 'event') return <Body muted>Mira prepared a calendar event “{p.title}”. Confirm it in the Mira web app (Calendar) — nothing was saved.</Body>;
   return (
     <EntryConfirm
       draft={{

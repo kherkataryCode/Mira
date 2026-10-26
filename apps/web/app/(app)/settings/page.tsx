@@ -5,6 +5,7 @@ import { LEARNING_TOPICS, type LearningTopicId } from '@friday/shared';
 import type { Preferences } from '@/lib/types';
 import { englishVoices, pickMiraVoice, speak } from '@/components/useSpeech';
 import { buddyEnabled, setBuddyEnabled } from '@/components/MiraBuddy';
+import { HOME_LAYOUTS } from '@friday/shared';
 import { api, errorMessage } from '@/lib/api';
 import { useAction, useResource } from '@/lib/hooks';
 import { relativeTime } from '@/lib/format';
@@ -169,11 +170,30 @@ export default function SettingsPage() {
                 <option value="system">Match system</option>
               </select>
             </Field>
-            <Toggle
-              label="Newspaper front page on Home (off = classic boxes)"
-              checked={draft.dashboard.style === 'newspaper'}
-              onChange={(v) => set('dashboard', { ...draft.dashboard, style: v ? 'newspaper' : 'classic' })}
-            />
+            <Field label="Home layout" hint="Every layout shows the same data. Auto picks one per day from your content.">
+              <select
+                value={draft.dashboard.layoutMode === 'auto' ? 'auto' : draft.dashboard.style}
+                onChange={(e) =>
+                  set('dashboard', e.target.value === 'auto' ? { ...draft.dashboard, layoutMode: 'auto' } : { ...draft.dashboard, layoutMode: 'manual', style: e.target.value as Preferences['dashboard']['style'] })
+                }
+                className={inputClass}
+              >
+                <option value="auto">Auto (changes at most once a day)</option>
+                {HOME_LAYOUTS.map((l) => <option key={l.id} value={l.id}>{l.label} — {l.blurb}</option>)}
+              </select>
+            </Field>
+            <Field label="Density">
+              <select value={draft.dashboard.density} onChange={(e) => set('dashboard', { ...draft.dashboard, density: e.target.value as Preferences['dashboard']['density'] })} className={inputClass}>
+                <option value="comfortable">Comfortable</option>
+                <option value="compact">Compact</option>
+              </select>
+            </Field>
+            <Field label="Sidebar on wide screens" hint="You can also hide or show it any time with the button at the top left.">
+              <select value={draft.dashboard.sidebar} onChange={(e) => set('dashboard', { ...draft.dashboard, sidebar: e.target.value as Preferences['dashboard']['sidebar'] })} className={inputClass}>
+                <option value="pinned">Pinned open</option>
+                <option value="hidden">Hidden (full-width pages)</option>
+              </select>
+            </Field>
             <Field label="Reply length">
               <select value={draft.verbosity} onChange={(e) => set('verbosity', e.target.value as Preferences['verbosity'])} className={inputClass}>
                 <option value="concise">Concise</option>

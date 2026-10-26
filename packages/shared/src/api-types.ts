@@ -1,5 +1,6 @@
 /** Response shapes of the Mira API, shared by the web and iOS clients (types only). */
 import type { Preferences, Proposal, Recurrence } from './schemas.js';
+import type { Word } from './words.js';
 
 export interface User {
   id: string;
@@ -124,8 +125,31 @@ export interface Home {
   tasks: Task[];
   /** Next open to-dos (by due date), for when nothing is due today. */
   upNext: Task[];
+  events: CalendarEvent[];
+  word: Word & { status: 'saved' | 'known' | null };
+  streak: { days: number; today: boolean };
   reminders: Reminder[];
   lesson: { id: string; title: string; topic: string; minutes: number; summary: string; takeaway: string; artSeed: number; status: string | null } | null;
   news: NewsItem[];
   brief: Brief | null;
+}
+
+export interface CalendarEvent {
+  id: string;
+  startAt: string;
+  endAt: string;
+  title: string;
+  allDay: boolean;
+  location: string | null;
+  notes: string | null;
+  attendees: string[];
+  recurrence: Recurrence;
+  reminderId: string | null;
+  recurring: boolean;
+}
+
+export interface CalendarRange {
+  events: CalendarEvent[];
+  tasks: { id: string; title: string; dueAt: string; allDay: boolean; status: 'open' | 'done'; priority: string }[];
+  reminders: { id: string; title: string; at: string }[];
 }

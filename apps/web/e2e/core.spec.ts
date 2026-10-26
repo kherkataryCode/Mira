@@ -239,3 +239,37 @@ test('learning is limited to the selected topics', async ({ page }) => {
   await expect(page.locator('main')).toContainText('Injection and input validation');
   await expect(page.locator('main')).not.toContainText('Egress filtering');
 });
+
+test('calendar: create an event from the form and see it in week and agenda views', async ({ page }) => {
+  await registerAndLogin(page);
+  await page.goto('/calendar');
+  await page.getByRole('button', { name: 'New event' }).click();
+  const dialog = page.getByRole('dialog', { name: 'New event' });
+  await dialog.getByLabel('Title').fill('Threat model review');
+  await dialog.getByLabel('Location or meeting link').fill('Room 4');
+  await dialog.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByRole('main')).toContainText('Threat model review');
+  await page.getByRole('button', { name: 'Agenda' }).click();
+  await expect(page.getByRole('button', { name: /Event: Threat model review/ })).toBeVisible();
+  // The linked reminder lives in Reminders, once.
+  await page.goto('/reminders');
+  await expect(page.getByRole('main').getByText('Threat model review')).toHaveCount(1);
+});
+
+test('home layouts: switch, persist across reload, and hide the sidebar', async ({ page }) => {
+  await registerAndLogin(page);
+  await page.getByLabel('Home layout').selectOption('timeline');
+  await expect(page.getByRole('region', { name: 'Your day' })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('region', { name: 'Your day' })).toBeVisible();
+  await page.getByLabel('Home layout').selectOption('command');
+  await expect(page.getByRole('region', { name: 'Alerts' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Word of the day' })).toBeVisible();
+  const hide = page.getByRole('button', { name: 'Hide sidebar' });
+  if (await hide.isVisible()) {
+    await hide.click();
+    await expect(page.getByRole('button', { name: 'Show sidebar' })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole('button', { name: 'Show sidebar' })).toBeVisible();
+  }
+});

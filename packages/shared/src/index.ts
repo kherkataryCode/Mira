@@ -8,3 +8,5 @@ export * from './news.js';
 export * from './redact.js';
 export type * from './api-types.js';
 export * from './markdown.js';
+export * from './words.js';
+export * from './scope.js';

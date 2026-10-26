@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { and, desc, eq } from 'drizzle-orm';
 import {
+  parseEventIntent,
   parseNaturalEntry,
   parseRequestSchema,
   projectCreateSchema,
@@ -67,7 +68,7 @@ export async function taskRoutes(app: FastifyInstance): Promise<void> {
     const me = authUser(req);
     const { text } = parse(parseRequestSchema, req.body);
     const prefs = await getPreferences(app.db, me.id);
-    return { preview: parseNaturalEntry(text, prefs.timezone), timezone: prefs.timezone };
+    return { preview: parseNaturalEntry(text, prefs.timezone), event: parseEventIntent(text, prefs.timezone), timezone: prefs.timezone };
   });
 
   app.get('/projects', async (req) => {

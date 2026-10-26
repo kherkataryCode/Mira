@@ -1,8 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 import { and, asc, desc, eq, gte, inArray, isNotNull, lt, lte, sql } from 'drizzle-orm';
 import { DateTime } from 'luxon';
-import { CYBER_RELEVANCE_THRESHOLD, localDate } from '@friday/shared';
-import { briefs, lessonProgress, lessons, newsItems, reminders, tasks } from '../db/schema.js';
+import { CYBER_RELEVANCE_THRESHOLD, localDate, wordForDate } from '@friday/shared';
+import { eventsInRange } from '../services/calendar.js';
+import { learningStreak } from '../services/streak.js';
+import { briefs, lessonProgress, lessons, newsItems, reminders, tasks, wordProgress } from '../db/schema.js';
 import { authUser } from '../auth/plugin.js';
 import { getPreferences } from '../services/prefs.js';
 import { generateBrief } from '../services/brief.js';
@@ -19,6 +21,12 @@ export async function homeRoutes(app: FastifyInstance): Promise<void> {
     const dayEnd = local.endOf('day').toJSDate();
     const today = localDate(now, prefs.timezone);
 
+    const word = wordForDate(today);
+    const [todayEvents, streak, wordRow] = await Promise.all([
+      eventsInRange(app.db, me.id, local.startOf('day').toJSDate(), dayEnd),
+      learningStreak(app.db, me.id, prefs.timezone, now),
+      app.db.select({ status: wordProgress.status }).from(wordProgress).where(and(eq(wordProgress.userId, me.id), eq(wordProgress.word, word.word))).limit(1),
+    ]);
     const [todayTasks, todayCount, nextReminders, featuredLesson, topNews, latestBrief, reviewsDue, openTasks, upNext] = await Promise.all([
       app.db.select().from(tasks)
         .where(and(eq(tasks.userId, me.id), eq(tasks.status, 'open'), isNotNull(tasks.dueAt), lt(tasks.dueAt, dayEnd)))
@@ -61,6 +69,9 @@ export async function homeRoutes(app: FastifyInstance): Promise<void> {
       counts: { tasksToday: todayCount[0]?.n ?? 0, openTasks: openTasks[0]?.n ?? 0, reminders: nextReminders.length, news: topNews.length, reviewsDue: reviewsDue[0]?.n ?? 0 },
       tasks: todayTasks,
       upNext,
+      events: todayEvents,
+      word: { ...word, status: wordRow[0]?.status ?? null },
+      streak,
       reminders: nextReminders,
       lesson: lesson
         ? { id: lesson.lesson.id, title: lesson.lesson.title, topic: lesson.lesson.topic, minutes: lesson.lesson.minutes, summary: lesson.lesson.summary, takeaway: lesson.lesson.takeaway, artSeed: lesson.lesson.artSeed, status: lesson.status }

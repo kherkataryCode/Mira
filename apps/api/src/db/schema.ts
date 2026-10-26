@@ -184,6 +184,9 @@ export const conversations = pgTable(
     /** "daily" = Mira's per-day briefing thread. */
     kind: text('kind', { enum: ['chat', 'daily'] }).notNull().default('chat'),
     localDate: text('local_date'),
+    pinned: boolean('pinned').notNull().default(false),
+    archivedAt: ts('archived_at'),
+    folder: text('folder'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -405,9 +408,69 @@ export const briefings = pgTable(
     lessonId: uuid('lesson_id').references(() => lessons.id, { onDelete: 'set null' }),
     newsItemIds: jsonb('news_item_ids').$type<string[]>().notNull().default([]),
     generatedBy: text('generated_by', { enum: ['deterministic', 'ai'] }).notNull(),
+    /** What the user was shown, so chat can answer "what was in yesterday's briefing?". */
+    snapshot: jsonb('snapshot').$type<BriefingSnapshot>(),
     createdAt: createdAt(),
   },
   (t) => [index('briefings_user_idx').on(t.userId, t.createdAt)],
+);
+
+export interface BriefingSnapshot {
+  stories: { id: string; title: string; source: string; url: string; exploitation: string; summary: string }[];
+  tasks: string[];
+  reminders: string[];
+  events: string[];
+  concept: { id: string; title: string; takeaway: string } | null;
+  word: { word: string; definition: string } | null;
+}
+
+/* ---------- calendar ---------- */
+
+export const events = pgTable(
+  'events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    startAt: ts('start_at').notNull(),
+    endAt: ts('end_at').notNull(),
+    allDay: boolean('all_day').notNull().default(false),
+    location: text('location'),
+    notes: text('notes'),
+    attendees: text('attendees').array().notNull().default(sql`'{}'::text[]`),
+    recurrence: jsonb('recurrence').$type<Recurrence>().notNull().default({ freq: 'none' }),
+    timezone: text('timezone').notNull(),
+    /** The one reminder created for this event (linked, not a copy). */
+    reminderId: uuid('reminder_id').references(() => reminders.id, { onDelete: 'set null' }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index('events_user_start_idx').on(t.userId, t.startAt)],
+);
+
+/* ---------- English word of the day ---------- */
+
+export const wordProgress = pgTable(
+  'word_progress',
+  {
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    word: text('word').notNull(),
+    status: text('status', { enum: ['saved', 'known'] }).notNull(),
+    reviewDueAt: ts('review_due_at'),
+    repetitions: integer('repetitions').notNull().default(0),
+    updatedAt: updatedAt(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.word] })],
+);
+
+/** One row per local day the user learned something (lesson, quiz, word). Drives streaks. */
+export const learningDays = pgTable(
+  'learning_days',
+  {
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    localDate: text('local_date').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.localDate] })],
 );
 
 /* ---------- operations ---------- */

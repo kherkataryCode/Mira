@@ -1,13 +1,15 @@
 'use client';
 import { Suspense, useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
-import { ArrowUp, CalendarDays, Copy, History, Mic, Plus, RotateCcw, Sparkles, Square, Trash2, Volume2, VolumeX, X } from 'lucide-react';
+import { ArrowUp, Copy, History, Mic, Plus, RotateCcw, Sparkles, Square, StickyNote, Volume2, VolumeX, X } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Markdown } from '@/components/Markdown';
 import type { ChatMessage, Proposal } from '@/lib/types';
 import { api, errorMessage, streamChat, type ChatEvent } from '@/lib/api';
-import { newClientId, relativeTime } from '@/lib/format';
+import { newClientId } from '@/lib/format';
 import { Badge, Button, ErrorNote, IconButton, Loading } from '@/components/ui';
 import { EntryConfirm } from '@/components/EntryConfirm';
+import { ChatHistory } from '@/components/ChatHistory';
+import { BriefingCards, isCardBriefing } from '@/components/BriefingCards';
 import { speak, stopSpeaking, useSpeechInput } from '@/components/useSpeech';
 import { useSession } from '@/components/AppShell';
 
@@ -19,7 +21,7 @@ interface Conversation {
   localDate?: string | null;
 }
 
-type UiMessage = ChatMessage & { demo?: boolean; errorText?: string };
+type UiMessage = ChatMessage & { demo?: boolean; errorText?: string; context?: string[] };
 
 function ProposalBlock({ proposal }: { proposal: Proposal }) {
   const [done, setDone] = useState<string | null>(null);
@@ -32,7 +34,8 @@ function ProposalBlock({ proposal }: { proposal: Proposal }) {
       draft={{
         kind: proposal.kind,
         title: proposal.title,
-        dueAt: proposal.kind === 'reminder' ? proposal.remindAt : proposal.dueAt,
+        dueAt: proposal.kind === 'reminder' ? proposal.remindAt : proposal.kind === 'event' ? proposal.startAt : proposal.dueAt,
+        endAt: proposal.kind === 'event' ? proposal.endAt : null,
         priority: proposal.kind === 'task' ? proposal.priority : 'medium',
         recurrence: proposal.recurrence,
         ambiguities: proposal.needsConfirmation,
@@ -45,7 +48,7 @@ function ProposalBlock({ proposal }: { proposal: Proposal }) {
 
 function ChatScreen() {
   const { prefs, setPrefs } = useSession();
-  const [conversations, setConversations] = useState<Conversation[] | null>(null);
+  const [, setConversations] = useState<Conversation[] | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<UiMessage[]>([]);
   const [loadingConvo, setLoadingConvo] = useState(false);
@@ -181,7 +184,7 @@ function ChatScreen() {
           } else if (e.type === 'done') {
             const id = currentAssistant;
             const kind = e.provider === 'mira-briefing' ? ('briefing' as const) : ('chat' as const);
-            setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, status: 'complete', provider: e.provider, model: e.model, demo: e.demo, kind } : m)));
+            setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, status: 'complete', provider: e.provider, model: e.model, demo: e.demo, kind, context: e.context } : m)));
             if (speakOn) void speak(full, { natural: prefs?.voice.naturalVoice, voiceName: prefs?.voice.webVoice });
           } else if (e.type === 'error') {
             const id = currentAssistant;
@@ -241,23 +244,23 @@ function ChatScreen() {
     }
   };
 
+  const [savedNote, setSavedNote] = useState<string | null>(null);
+  const saveNote = async (m: UiMessage) => {
+    const first = m.content.split('\n').find((l) => l.trim())?.replace(/[#*_`>[\]]/g, '').trim() ?? 'Mira answer';
+    try {
+      await api.post('/notes', { title: first.slice(0, 80) || 'Mira answer', body: m.content.slice(0, 20000), tags: ['mira'] });
+      setSavedNote(m.id);
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  };
+
   const newChat = () => {
     abortRef.current?.abort();
     setConversationId(null);
     setMessages([]);
     setShowHistory(false);
     inputRef.current?.focus();
-  };
-
-  const deleteConversation = async (id: string) => {
-    if (!window.confirm('Delete this conversation? This cannot be undone.')) return;
-    try {
-      await api.del(`/chat/conversations/${id}`);
-      if (id === conversationId) newChat();
-      await loadConversations();
-    } catch (e) {
-      setError(errorMessage(e));
-    }
   };
 
   const toggleSpeak = async () => {
@@ -299,22 +302,14 @@ function ChatScreen() {
       </div>
 
       {showHistory ? (
-        <div className="mb-2 max-h-[40dvh] overflow-y-auto rounded-2xl border border-line bg-raised p-2 scrollbar-thin">
-          {!conversations ? <Loading /> : conversations.length === 0 ? <p className="p-2 text-sm text-muted">No conversations yet.</p> : null}
-          <ul>
-            {conversations?.map((c) => (
-              <li key={c.id} className="flex items-center gap-1">
-                <button onClick={() => void openConversation(c.id)} className={`min-h-11 flex-1 truncate rounded-xl px-3 text-left text-sm ${c.id === conversationId ? 'bg-surface font-semibold' : ''}`}>
-                  {c.kind === 'daily' ? <CalendarDays className="mr-1.5 inline size-4 align-[-2px] text-accent-text" aria-label="Daily briefing" /> : null}
-                  {c.title} <span className="text-xs text-muted">· {relativeTime(c.updatedAt)}</span>
-                </button>
-                <IconButton label={`Delete conversation ${c.title}`} onClick={() => void deleteConversation(c.id)}>
-                  <Trash2 className="size-4" aria-hidden />
-                </IconButton>
-              </li>
-            ))}
-          </ul>
-        </div>
+        <ChatHistory
+          currentId={conversationId}
+          onOpen={(id) => void openConversation(id)}
+          onRemoved={(ids) => {
+            if (conversationId && ids.includes(conversationId)) newChat();
+            void loadConversations();
+          }}
+        />
       ) : null}
 
       <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain scrollbar-thin" aria-live="polite" aria-busy={Boolean(streaming)}>
@@ -342,7 +337,15 @@ function ChatScreen() {
                 >
                   {m.kind === 'briefing' ? <div className="mb-2 flex items-center gap-2"><Badge tone="accent">Mira · Briefing</Badge></div> : null}
                   {m.role === 'assistant' && (m.demo || m.provider === 'demo') ? <div className="mb-1"><Badge tone="demo">Demo response</Badge></div> : null}
-                  {m.role === 'assistant' && m.content ? <Markdown text={m.content} /> : m.content}
+                  {m.role === 'assistant' && m.content ? (
+                    m.kind === 'briefing' && isCardBriefing(m.content) ? (
+                      <BriefingCards md={m.content} onAsk={(t) => { setInput(t); inputRef.current?.focus(); }} />
+                    ) : (
+                      <Markdown text={m.content} />
+                    )
+                  ) : (
+                    m.content
+                  )}
                   {m.status === 'streaming' && !m.content ? (
                     <span className="inline-flex gap-1" aria-label="Mira is thinking">
                       <span className="typing-dot size-1.5 rounded-full bg-muted" />
@@ -362,13 +365,21 @@ function ChatScreen() {
                     </Button>
                   </div>
                 ) : null}
+                {m.role === 'assistant' && m.context?.length ? (
+                  <div className="flex flex-wrap gap-1" aria-label="Records Mira used">
+                    {m.context.map((c) => <span key={c} className="rounded-full border border-line px-2 py-0.5 text-[0.7rem] text-muted">{c}</span>)}
+                  </div>
+                ) : null}
                 {m.role === 'assistant' && m.status === 'complete' && m.content ? (
-                  <div className="flex gap-1">
+                  <div className="flex flex-wrap gap-1">
                     <button onClick={() => void copy(m)} className="inline-flex min-h-9 items-center gap-1 px-1 text-xs text-muted hover:text-text">
                       <Copy className="size-3.5" aria-hidden /> {copied === m.id ? 'Copied' : 'Copy'}
                     </button>
                     <button onClick={() => void readAloud(m)} className="inline-flex min-h-9 items-center gap-1 px-1 text-xs text-muted hover:text-text">
                       <Volume2 className="size-3.5" aria-hidden /> {speakingId === m.id ? 'Stop' : 'Read aloud'}
+                    </button>
+                    <button onClick={() => void saveNote(m)} className="inline-flex min-h-9 items-center gap-1 px-1 text-xs text-muted hover:text-text">
+                      <StickyNote className="size-3.5" aria-hidden /> {savedNote === m.id ? 'Saved to Notes' : 'Save as note'}
                     </button>
                   </div>
                 ) : null}

@@ -208,7 +208,7 @@ export function Newspaper({ data, onClassic, children }: { data: Home; onClassic
         </div>
 
         {/* To-dos and reminders as headline boxes */}
-        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Hit onOpen={setOpen} story={{ kind: 'tasks', items: todos, open: data.counts.openTasks }} label="Open to-dos" className="np-box">
             <p className="np-kicker">To-Do Dispatch</p>
             <h3 className="np-headline mt-1 text-2xl">{tasksHeadline(todos, data.counts.openTasks)}</h3>
@@ -223,6 +223,20 @@ export function Newspaper({ data, onClassic, children }: { data: Home; onClassic
               {data.reminders.slice(0, 3).map((r) => <li key={r.id} className="flex justify-between gap-3 border-b border-dotted border-[var(--np-rule)] pb-1"><span className="truncate">{r.title}</span><span className="shrink-0 opacity-70">{fmtDateTime(r.nextOccurrenceAt, tz)}</span></li>)}
             </ul>
           </Hit>
+          <Link href="/calendar" className="np-box np-hit block">
+            <p className="np-kicker">Today’s Schedule</p>
+            <h3 className="np-headline mt-1 text-2xl">{data.events.length ? `${data.events.length} Engagement${data.events.length === 1 ? '' : 's'} on the Books` : 'Diary Wide Open Today'}</h3>
+            <ul className="mt-2 flex flex-col gap-1 text-sm">
+              {data.events.slice(0, 3).map((e) => <li key={`${e.id}${e.startAt}`} className="flex justify-between gap-3 border-b border-dotted border-[var(--np-rule)] pb-1"><span className="truncate">{e.title}</span><span className="shrink-0 opacity-70">{e.allDay ? 'All day' : new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', timeZone: tz }).format(new Date(e.startAt))}</span></li>)}
+            </ul>
+          </Link>
+          <div className="np-box">
+            <p className="np-kicker">Word of the Day</p>
+            <h3 className="np-headline mt-1 text-3xl">{data.word.word}</h3>
+            <p className="text-xs italic opacity-70">{data.word.pos} · {data.word.ipa}</p>
+            <p className="mt-1 text-sm">{data.word.definition}</p>
+            <p className="mt-1 text-sm italic opacity-80">“{data.word.examples[0]}”</p>
+          </div>
         </div>
       </div>
       {children}

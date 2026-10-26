@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.0 — 2026-10-26 — Product spec, phases 1–4
+
+- **Calendar**: day, week, month and agenda views. Events support location or link, attendees, notes and repeats, plus one linked reminder. Creating an event warns about overlaps, and you can drag events to reschedule them. Due tasks and reminders appear on the calendar without being copied, and you can complete or postpone tasks from there.
+- **Events from natural language** in chat and quick add, with a confirmation card.
+- **Briefing-aware chat**: each briefing's dated snapshot is stored, so Mira can answer “What was the main story in today's/yesterday's briefing?” from what you were actually shown. Chips show which records were used.
+- **Brief me** now opens as boxed, collapsible cards. It adds “3 things worth knowing today”, today's schedule, a “Why it matters” line for each story, Ask Mira and Share actions, and the word of the day.
+- **Word of the day**: pronunciation, part of speech, definition, examples, collocations, usage, a quick quiz, save and “I know it”, spaced review on the Learn page, and a learning streak.
+- **Eight home layouts** (Classic, Newspaper, Magazine, Timeline, Bento, Focus, Command Center, Knowledge Map) with Auto, Shuffle and Manual modes plus a density setting, all saved to your account.
+- **Collapsible sidebar** with a saved default. Pages use the full width when it is hidden.
+- **Chat history**: search across titles and messages, pin, rename, archive, multi-select archive or delete, Markdown export, and “Save as note”.
+- **Scope policy enforced on the server**: clearly unrelated requests get a short redirect with no AI call. Mixed requests get the supported part answered.
+- See `docs/SPEC_STATUS.md` for item-by-item status.
+
 ## 0.4.0 — 2026-10-25
 
 - Home can now be a **newspaper front page**, “The Mira Times”, and this is the default. The top cyber story leads, with more stories in columns and the Concept of the Day in a sidebar. The to-dos and reminders boxes get rule-written headlines. Tap any part to read it full screen. Switch between this and the classic boxes with “Classic view” on the page or in Settings → Time & appearance. The choice is saved to your account.

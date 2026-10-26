@@ -1,7 +1,7 @@
 import { PassThrough } from 'node:stream';
 import type { FastifyInstance, FastifyReply } from 'fastify';
-import { and, asc, desc, eq, lt } from 'drizzle-orm';
-import { LIMITS, chatSendSchema, isBriefingRequest, type Proposal } from '@friday/shared';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
+import { LIMITS, chatSendSchema, classifyScope, conversationBulkSchema, conversationUpdateSchema, isBriefingRequest, scopeRedirect, type Proposal } from '@friday/shared';
 import { conversations, messages } from '../db/schema.js';
 import { authUser, type AuthUser } from '../auth/plugin.js';
 import { conflict, notFound } from '../util/errors.js';
@@ -76,7 +76,15 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
       const turns = (lastUser >= 0 ? history.slice(0, lastUser + 1) : history).map((m) => ({ role: m.role, content: m.content }));
       while (turns.length && turns[0]!.role !== 'user') turns.shift();
 
-      const context = await buildContext(app.db, me.id, me.displayName, prefs, proposals);
+      const lastUserText = turns.findLast((t) => t.role === 'user')?.content ?? '';
+      const context = await buildContext(app.db, me.id, me.displayName, prefs, proposals, lastUserText);
+      // Tell the UI which of the user's records informed this answer.
+      const used = [
+        ...(context.briefing ? [`From ${context.briefing.label}`] : []),
+        ...(context.events?.length ? ['Calendar'] : []),
+        ...(context.todayTasks.length ? ['Tasks'] : []),
+        ...(context.nextReminders.length ? ['Reminders'] : []),
+      ];
       const result = await app.ai.generate({
         userId: me.id,
         purpose: 'chat',
@@ -97,7 +105,7 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
         .update(messages)
         .set({ content: result.text, status: 'complete', provider: result.provider, model: result.model, errorCode: null })
         .where(eq(messages.id, assistantId));
-      write({ type: 'done', provider: result.provider, model: result.model, demo: result.demo });
+      write({ type: 'done', provider: result.provider, model: result.model, demo: result.demo, context: used });
     } catch (raw) {
       const err = raw instanceof AiError ? raw : new AiError('unavailable', USER_MESSAGES.unavailable);
       if (!(raw instanceof AiError)) logUnexpected(app, raw);
@@ -153,6 +161,22 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     if (isBriefingRequest(body.content)) {
       return streamBriefing(reply, me, conversation.id, assistant!.id, userMsg.id);
     }
+    // Scope policy, enforced here (not just in the prompt): clearly unrelated requests get a
+    // short redirect without spending AI credit. Mixed requests go to the model, which answers the supported part.
+    const scope = proposals.length ? { scope: 'in' as const, topic: null } : classifyScope(body.content);
+    if (scope.scope === 'out') {
+      const text = scopeRedirect(scope.topic!);
+      await app.db.update(messages).set({ content: text, status: 'complete', provider: 'mira-scope', model: 'policy' }).where(eq(messages.id, assistant!.id));
+      await app.db.update(conversations).set({ updatedAt: new Date() }).where(eq(conversations.id, conversation.id));
+      void reply.header('cache-control', 'no-store').type('application/x-ndjson').send(
+        [
+          { type: 'meta', conversationId: conversation.id, userMessageId: userMsg.id, assistantMessageId: assistant!.id, proposals: [] },
+          { type: 'delta', text },
+          { type: 'done', provider: 'mira-scope', model: 'policy', demo: false, redirected: true },
+        ].map((e) => JSON.stringify(e)).join('\n') + '\n',
+      );
+      return reply;
+    }
     return streamReply(reply, me, conversation.id, assistant!.id, { conversationId: conversation.id, userMessageId: userMsg.id }, proposals, userMsg.id);
   });
 
@@ -205,15 +229,79 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     return { cancelled: Boolean(c) };
   });
 
-  app.get('/chat/conversations', async (req) => {
+  /** History: newest first, pinned on top; search covers titles and message text. */
+  app.get<{ Querystring: { q?: string; archived?: string } }>('/chat/conversations', async (req) => {
     const me = authUser(req);
+    const q = (req.query.q ?? '').trim().slice(0, 100);
+    const archived = req.query.archived === '1';
+    const like = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
     const rows = await app.db
-      .select({ id: conversations.id, title: conversations.title, updatedAt: conversations.updatedAt, kind: conversations.kind, localDate: conversations.localDate })
+      .select({
+        id: conversations.id,
+        title: conversations.title,
+        updatedAt: conversations.updatedAt,
+        kind: conversations.kind,
+        localDate: conversations.localDate,
+        pinned: conversations.pinned,
+        folder: conversations.folder,
+        archived: sql<boolean>`${conversations.archivedAt} is not null`,
+        preview: sql<string | null>`(select left(regexp_replace(m.content, '[#*_>\`\\[\\]]', '', 'g'), 140) from messages m where m.conversation_id = ${conversations.id} and m.role = 'assistant' and m.status = 'complete' order by m.created_at desc limit 1)`,
+      })
       .from(conversations)
-      .where(eq(conversations.userId, me.id))
-      .orderBy(desc(conversations.updatedAt))
-      .limit(50);
+      .where(
+        and(
+          eq(conversations.userId, me.id),
+          archived ? isNotNull(conversations.archivedAt) : isNull(conversations.archivedAt),
+          q
+            ? or(
+                sql`${conversations.title} ilike ${like}`,
+                sql`exists (select 1 from messages m where m.conversation_id = ${conversations.id} and m.content ilike ${like})`,
+              )
+            : undefined,
+        ),
+      )
+      .orderBy(desc(conversations.pinned), desc(conversations.updatedAt))
+      .limit(100);
     return { conversations: rows };
+  });
+
+  app.patch<IdParams>('/chat/conversations/:id', async (req) => {
+    const me = authUser(req);
+    await ownedConversation(me.id, req.params.id);
+    const body = parse(conversationUpdateSchema, req.body);
+    const { archived, ...rest } = body;
+    const [row] = await app.db
+      .update(conversations)
+      .set({ ...rest, ...(archived === undefined ? {} : { archivedAt: archived ? new Date() : null }) })
+      .where(eq(conversations.id, req.params.id))
+      .returning({ id: conversations.id, title: conversations.title, pinned: conversations.pinned, folder: conversations.folder });
+    return { conversation: row };
+  });
+
+  /** Multi-select actions. Only the caller's own conversations are touched. */
+  app.post('/chat/conversations/bulk', async (req) => {
+    const me = authUser(req);
+    const { ids, action } = parse(conversationBulkSchema, req.body);
+    const mine = and(eq(conversations.userId, me.id), inArray(conversations.id, ids));
+    const done =
+      action === 'delete'
+        ? await app.db.delete(conversations).where(mine).returning({ id: conversations.id })
+        : await app.db.update(conversations).set({ archivedAt: action === 'archive' ? new Date() : null }).where(mine).returning({ id: conversations.id });
+    return { count: done.length };
+  });
+
+  /** Markdown export of one conversation. */
+  app.get<IdParams>('/chat/conversations/:id/export', async (req, reply) => {
+    const me = authUser(req);
+    const c = await ownedConversation(me.id, req.params.id);
+    const rows = await app.db
+      .select({ role: messages.role, content: messages.content, createdAt: messages.createdAt })
+      .from(messages)
+      .where(and(eq(messages.conversationId, c.id), eq(messages.userId, me.id), eq(messages.status, 'complete')))
+      .orderBy(asc(messages.createdAt))
+      .limit(1000);
+    const md = [`# ${c.title}`, '', ...rows.flatMap((m) => [`## ${m.role === 'user' ? 'You' : 'Mira'} · ${m.createdAt.toISOString().slice(0, 16).replace('T', ' ')} UTC`, '', m.content, ''])].join('\n');
+    return reply.type('text/markdown; charset=utf-8').header('content-disposition', `attachment; filename="mira-chat-${c.id.slice(0, 8)}.md"`).send(md);
   });
 
   app.get<IdParams>('/chat/conversations/:id', async (req) => {

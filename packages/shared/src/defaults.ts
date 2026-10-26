@@ -52,6 +52,9 @@ export const DEFAULT_PREFERENCES: Preferences = {
     order: ['brief', 'tasks', 'reminders', 'learning', 'news', 'quickActions'],
     hidden: [],
     style: 'newspaper',
+    layoutMode: 'manual',
+    density: 'comfortable',
+    sidebar: 'pinned',
   },
 };
 

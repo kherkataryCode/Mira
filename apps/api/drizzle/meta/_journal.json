@@ -15,6 +15,13 @@
       "when": 1792949644646,
       "tag": "0001_mira_briefings",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793036212168,
+      "tag": "0002_calendar_words_history",
+      "breakpoints": true
     }
   ]
 }

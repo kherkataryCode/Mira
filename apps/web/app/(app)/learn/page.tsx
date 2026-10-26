@@ -6,6 +6,7 @@ import type { Lesson } from '@/lib/types';
 import { useResource } from '@/lib/hooks';
 import { Art } from '@/components/Art';
 import { Badge, Chip, Empty, ErrorNote, Loading, PageHeader } from '@/components/ui';
+import { WordReview } from '@/components/WordReview';
 
 interface LearnIndex {
   featured: Lesson | null;
@@ -44,6 +45,7 @@ export default function LearnPage() {
   return (
     <div>
       <PageHeader title="Learn" subtitle="Bite-sized lessons with spaced review. A few minutes a day adds up." />
+      <WordReview />
       <div className="mb-4 flex gap-2 overflow-x-auto pb-1 scrollbar-thin" role="group" aria-label="Learning views">
         <Chip active={tab === 'foryou'} onClick={() => setTab('foryou')}>For you</Chip>
         <Chip active={tab === 'topics'} onClick={() => setTab('topics')}>Topics</Chip>

@@ -152,3 +152,29 @@ export function parseNaturalEntry(text: string, timezone: string, now: Date = ne
     matchedDateText,
   };
 }
+
+const EVENT_INTENT = /^(?:please\s+)?(?:(?:schedule|book|add|create|set\s+up|put)\s+(?:a\s+|an\s+)?(?:meeting|event|call|appointment|session|sync)|(?:meeting|call|appointment|sync|lunch|dinner)\s+with)\b/i;
+
+export interface ParsedEvent {
+  title: string;
+  startAt: string | null;
+  endAt: string | null;
+  allDay: boolean;
+  recurrence: Recurrence;
+  ambiguities: string[];
+}
+
+/** "Meeting with Raj tomorrow 3pm for 30 minutes" → an event. Null when the text is not about an event. */
+export function parseEventIntent(text: string, timezone: string, now: Date = new Date()): ParsedEvent | null {
+  if (!EVENT_INTENT.test(text.trim())) return null;
+  const dur = /\bfor\s+(\d{1,3})\s*(min(?:ute)?s?|h(?:ou)?rs?|hours?)\b/i.exec(text);
+  const minutes = dur ? Number(dur[1]) * (/^h/i.test(dur[2]!) ? 60 : 1) : 60;
+  const cleaned = text.replace(/\bfor\s+\d{1,3}\s*(?:min(?:ute)?s?|h(?:ou)?rs?|hours?)\b/i, '');
+  const p = parseNaturalEntry(cleaned, timezone, now);
+  const title = p.title.replace(/^(?:schedule|book|add|create|set\s+up|put)\s+(?:a\s+|an\s+)?/i, '').replace(/^\w/, (c) => c.toUpperCase());
+  const ambiguities = [...p.ambiguities];
+  if (!p.dueAt) ambiguities.push('No date or time found — pick one.');
+  const start = p.dueAt;
+  const end = start ? new Date(new Date(start).getTime() + (p.allDay ? 86_400_000 - 60_000 : minutes * 60_000)).toISOString() : null;
+  return { title: title || 'Event', startAt: start, endAt: end, allDay: p.allDay, recurrence: p.recurrence, ambiguities };
+}

@@ -15,6 +15,9 @@ import {
   Settings,
   StickyNote,
   AlarmClock,
+  CalendarDays,
+  PanelLeftClose,
+  PanelLeftOpen,
   X,
 } from 'lucide-react';
 import { api, errorMessage } from '@/lib/api';
@@ -40,6 +43,7 @@ export function useSession(): Session {
 
 const NAV = [
   { href: '/', label: 'Home', icon: Home },
+  { href: '/calendar', label: 'Calendar', icon: CalendarDays },
   { href: '/tasks', label: 'Tasks', icon: CheckSquare },
   { href: '/reminders', label: 'Reminders', icon: AlarmClock },
   { href: '/learn', label: 'Learn', icon: BookOpen },
@@ -51,6 +55,7 @@ const NAV = [
 
 const TABS = [
   { href: '/', label: 'Home', icon: Home },
+  { href: '/calendar', label: 'Calendar', icon: CalendarDays },
   { href: '/tasks', label: 'Tasks', icon: CheckSquare },
   { href: '/chat', label: 'Chat', icon: MessageCircle },
   { href: '/learn', label: 'Learn', icon: BookOpen },
@@ -169,6 +174,13 @@ export function AppShell({ children }: { children: ReactNode }) {
     );
   }
 
+  const sidebarHidden = prefs?.dashboard.sidebar === 'hidden';
+  const toggleSidebar = async () => {
+    if (!prefs) return;
+    const next = { ...prefs, dashboard: { ...prefs.dashboard, sidebar: sidebarHidden ? ('pinned' as const) : ('hidden' as const) } };
+    setPrefs(next);
+    await api.patch('/preferences', { dashboard: next.dashboard }).catch(() => setPrefs(prefs));
+  };
   const nav = user.role === 'owner' ? [...NAV, { href: '/health', label: 'System Health', icon: Activity }] : NAV;
   const isChat = pathname === '/chat';
 
@@ -179,7 +191,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </a>
       <div className="flex min-h-dvh">
         {/* Desktop sidebar */}
-        <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-line bg-surface px-3 py-5 lg:flex">
+        <aside className={`sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-line bg-surface px-3 py-5 ${sidebarHidden ? '' : 'lg:flex'}`}>
           <Link href="/" className="mb-6 flex items-center gap-2 px-3">
             <LogoMark />
             <span className="display text-2xl">Mira</span>
@@ -216,8 +228,13 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="flex min-w-0 flex-1 flex-col">
           {/* Top bar */}
           <header className="safe-top sticky top-0 z-30 border-b border-line bg-bg/90 backdrop-blur">
-            <div className="safe-x mx-auto flex h-[var(--topbar-h)] w-full max-w-6xl items-center gap-2">
-              <Link href="/" className="flex items-center gap-2 lg:hidden">
+            <div className={`safe-x mx-auto flex h-[var(--topbar-h)] w-full items-center gap-2 ${sidebarHidden ? 'max-w-[1600px]' : 'max-w-6xl'}`}>
+              <span className="hidden lg:contents">
+                <IconButton label={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'} onClick={() => void toggleSidebar()} aria-pressed={!sidebarHidden}>
+                  {sidebarHidden ? <PanelLeftOpen className="size-5" aria-hidden /> : <PanelLeftClose className="size-5" aria-hidden />}
+                </IconButton>
+              </span>
+              <Link href="/" className={`flex items-center gap-2 ${sidebarHidden ? '' : 'lg:hidden'}`}>
                 <LogoMark size={24} />
                 <span className="display text-xl">Mira</span>
               </Link>
@@ -229,14 +246,14 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
           </header>
 
-          <main id="main" className={`safe-x mx-auto w-full max-w-6xl flex-1 ${isChat ? 'flex flex-col' : 'pb-28 lg:pb-10'}`}>
+          <main id="main" className={`safe-x mx-auto w-full flex-1 ${sidebarHidden ? 'max-w-[1600px]' : 'max-w-6xl'} ${isChat ? 'flex flex-col' : 'pb-28 lg:pb-10'}`}>
             {children}
           </main>
 
           {/* Mobile tab bar (hidden in Chat so the composer owns the bottom edge) */}
           {!isChat ? (
             <nav aria-label="Primary" className="safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface/95 backdrop-blur lg:hidden">
-              <ul className="mx-auto grid max-w-lg grid-cols-4">
+              <ul className="mx-auto grid max-w-lg grid-cols-5">
                 {TABS.map(({ href, label, icon: Icon }) => {
                   const active = isActive(pathname, href);
                   return (

@@ -51,3 +51,31 @@ describe('defaults', () => {
     expect(preferencesSchema.safeParse({ ...DEFAULT_PREFERENCES, learningTopics: ['finance'] }).success).toBe(false);
   });
 });
+
+describe('events and scope', () => {
+  it('parses meeting requests into events with a duration', async () => {
+    const { parseEventIntent } = await import('./nlparse.js');
+    const now = new Date('2026-10-26T06:00:00Z');
+    const e = parseEventIntent('Meeting with Raj tomorrow at 3pm for 30 minutes', 'Asia/Kolkata', now)!;
+    expect(e.title).toMatch(/^Meeting with Raj/);
+    expect(new Date(e.endAt!).getTime() - new Date(e.startAt!).getTime()).toBe(30 * 60_000);
+    expect(parseEventIntent('Remind me to call mum tomorrow', 'Asia/Kolkata', now)).toBeNull();
+  });
+
+  it('classifies scope conservatively', async () => {
+    const { classifyScope } = await import('./scope.js');
+    expect(classifyScope('Give me a recipe for biryani').scope).toBe('out');
+    expect(classifyScope('Recipe for biryani and add a task to buy rice').scope).toBe('mixed');
+    expect(classifyScope('What is lateral movement?').scope).toBe('in');
+    expect(classifyScope('Explain the word meticulous').scope).toBe('in');
+  });
+
+  it('picks a stable word per day with a valid quiz', async () => {
+    const { wordForDate, wordQuiz } = await import('./words.js');
+    const w = wordForDate('2026-10-26');
+    expect(wordForDate('2026-10-26')).toBe(w);
+    const q = wordQuiz(w);
+    expect(q.options[q.answer]).toBe(w.definition);
+    expect(new Set(q.options).size).toBe(3);
+  });
+});

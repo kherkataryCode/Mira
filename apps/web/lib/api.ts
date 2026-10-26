@@ -59,7 +59,7 @@ export const api = {
 export type ChatEvent =
   | { type: 'meta'; conversationId: string; userMessageId: string; assistantMessageId: string; proposals: import('@friday/shared').Proposal[] }
   | { type: 'delta'; text: string }
-  | { type: 'done'; provider: string; model: string; demo: boolean }
+  | { type: 'done'; provider: string; model: string; demo: boolean; context?: string[]; redirected?: boolean }
   | { type: 'error'; code: string; message: string; partial: boolean };
 
 /** Posts and reads an NDJSON stream, invoking onEvent per line. Abortable. */
