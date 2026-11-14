@@ -16,7 +16,7 @@
     "@friday/shared": "0.1.0",
     "drizzle-orm": "^0.45.4",
     "luxon": "^3.7.2",
-    "pg-boss": "^12.38.0"
+    "pg-boss": "^12.38.2"
   },
   "devDependencies": {
     "@types/luxon": "^3.7.6",
